@@ -2,11 +2,13 @@ import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
+import VueKonva from 'vue-konva'
 
 import HomeView from './views/HomeView.vue'
 import ProjectView from './views/ProjectView.vue'
 
 const app = createApp(App)
+app.use(VueKonva)
 
 // Configuración de Pinia
 const pinia = createPinia()
