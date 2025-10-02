@@ -10,6 +10,9 @@ export const useAnnotationStore = defineStore('annotation', {
     images: [],
     categories: [],
     
+    // Contexto del dataset actual
+    currentDataset: null,
+    
     // Estado de la UI
     selectedCategory: null,
     activeTool: 'select',
@@ -82,14 +85,16 @@ export const useAnnotationStore = defineStore('annotation', {
     
     // ==================== APIS DE IMÁGENES ====================
     
-    async uploadImage(imageFile, projectId = 'default') {
+    async uploadImage(imageFile, datasetId = null) {
       this.loading = true
       this.clearError()
       
       try {
         const formData = new FormData()
         formData.append('image', imageFile)
-        formData.append('project_id', projectId)
+        if (datasetId || this.currentDataset?._id) {
+          formData.append('dataset_id', datasetId || this.currentDataset._id)
+        }
         
         const response = await fetch(`${API_BASE_URL}/images`, {
           method: 'POST',
@@ -115,12 +120,16 @@ export const useAnnotationStore = defineStore('annotation', {
       }
     },
     
-    async loadImages(projectId = 'default') {
+    async loadImages(datasetId = null) {
       this.loading = true
       this.clearError()
       
       try {
-        const response = await fetch(`${API_BASE_URL}/images?project_id=${projectId}`)
+        const targetDatasetId = datasetId || this.currentDataset?._id
+        const url = targetDatasetId ? 
+          `${API_BASE_URL}/images?dataset_id=${targetDatasetId}` : 
+          `${API_BASE_URL}/images`
+        const response = await fetch(url)
         
         if (!response.ok) {
           throw new Error(`Error ${response.status}: ${response.statusText}`)
@@ -328,12 +337,16 @@ export const useAnnotationStore = defineStore('annotation', {
     
     // ==================== APIS DE CATEGORÍAS ====================
     
-    async loadCategories(projectId = 'default') {
+    async loadCategories(datasetId = null) {
       this.loading = true
       this.clearError()
       
       try {
-        const response = await fetch(`${API_BASE_URL}/categories?project_id=${projectId}`)
+        const targetDatasetId = datasetId || this.currentDataset?._id
+        const url = targetDatasetId ? 
+          `${API_BASE_URL}/categories?dataset_id=${targetDatasetId}` : 
+          `${API_BASE_URL}/categories`
+        const response = await fetch(url)
         
         if (!response.ok) {
           throw new Error(`Error ${response.status}: ${response.statusText}`)
@@ -357,13 +370,13 @@ export const useAnnotationStore = defineStore('annotation', {
       }
     },
     
-    async addCategory(categoryData, projectId = 'default') {
+    async addCategory(categoryData, datasetId = null) {
       this.loading = true
       this.clearError()
       
       try {
         const payload = {
-          project_id: projectId,
+          dataset_id: datasetId || this.currentDataset?._id,
           ...categoryData
         }
         
@@ -414,13 +427,32 @@ export const useAnnotationStore = defineStore('annotation', {
       this.currentImage = image
     },
     
+    setCurrentDataset(dataset) {
+      this.currentDataset = dataset
+      // Limpiar datos cuando cambiamos de dataset
+      this.images = []
+      this.annotations = []
+      this.categories = []
+      this.currentImage = null
+      this.selectedCategory = null
+    },
+    
+    clearDatasetContext() {
+      this.currentDataset = null
+      this.images = []
+      this.annotations = []
+      this.categories = []
+      this.currentImage = null
+      this.selectedCategory = null
+    },
+    
     // ==================== INICIALIZACIÓN ====================
     
-    async initialize(projectId = 'default') {
+    async initialize(datasetId = null) {
       try {
         await Promise.all([
-          this.loadImages(projectId),
-          this.loadCategories(projectId)
+          this.loadImages(datasetId),
+          this.loadCategories(datasetId)
         ])
       } catch (error) {
         console.error('Error al inicializar store:', error)

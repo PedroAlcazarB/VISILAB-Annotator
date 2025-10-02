@@ -72,7 +72,8 @@ def upload_image():
             'width': width,
             'height': height,
             'upload_date': datetime.utcnow(),
-            'project_id': request.form.get('project_id', 'default')
+            'dataset_id': request.form.get('dataset_id'),  # Cambiar de project_id a dataset_id
+            'project_id': request.form.get('project_id', 'default')  # Mantener para compatibilidad
         }
         
         # Insertar en MongoDB
@@ -92,10 +93,18 @@ def get_images():
     """Obtener lista de todas las imágenes"""
     try:
         db = get_db()
+        dataset_id = request.args.get('dataset_id')
         project_id = request.args.get('project_id', 'default')
         
+        # Construir filtro
+        query_filter = {}
+        if dataset_id:
+            query_filter['dataset_id'] = dataset_id
+        else:
+            query_filter['project_id'] = project_id
+        
         images = list(db.images.find(
-            {'project_id': project_id},
+            query_filter,
             {'data': 0}  # Excluir datos binarios para listar
         ))
         
@@ -162,17 +171,39 @@ def delete_image(image_id):
         
         if not ObjectId.is_valid(image_id):
             return jsonify({'error': 'ID de imagen inválido'}), 400
+        
+        # Obtener información de la imagen antes de eliminarla
+        image_doc = db.images.find_one({'_id': ObjectId(image_id)})
+        if not image_doc:
+            return jsonify({'error': 'Imagen no encontrada'}), 404
             
-        # Eliminar imagen
+        # Eliminar imagen de MongoDB
         result = db.images.delete_one({'_id': ObjectId(image_id)})
         
         if result.deleted_count == 0:
-            return jsonify({'error': 'Imagen no encontrada'}), 404
+            return jsonify({'error': 'Error al eliminar imagen de la base de datos'}), 500
+        
+        # Eliminar archivo físico si existe
+        if 'filename' in image_doc:
+            file_path = os.path.join(IMAGE_FOLDER, image_doc['filename'])
+            try:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+                    print(f"Archivo físico eliminado: {file_path}")
+                else:
+                    print(f"Archivo físico no encontrado: {file_path}")
+            except Exception as file_error:
+                print(f"Error al eliminar archivo físico {file_path}: {str(file_error)}")
+                # No fallar la operación completa si solo falla la eliminación del archivo
             
         # Eliminar anotaciones asociadas
-        db.annotations.delete_many({'image_id': image_id})
+        annotations_result = db.annotations.delete_many({'image_id': image_id})
+        print(f"Eliminadas {annotations_result.deleted_count} anotaciones asociadas")
         
-        return jsonify({'message': 'Imagen eliminada correctamente'})
+        return jsonify({
+            'message': 'Imagen eliminada correctamente',
+            'deleted_annotations': annotations_result.deleted_count
+        })
         
     except Exception as e:
         return jsonify({'error': f'Error al eliminar imagen: {str(e)}'}), 500
@@ -378,6 +409,264 @@ def create_category():
         
     except Exception as e:
         return jsonify({'error': f'Error al crear categoría: {str(e)}'}), 500
+
+# ==================== ENDPOINTS PARA DATASETS ====================
+
+@app.route('/api/datasets', methods=['GET'])
+def get_datasets():
+    """Obtener lista de todos los datasets"""
+    try:
+        db = get_db()
+        datasets = list(db.datasets.find({}, {'images': 0}))  # Excluir lista de imágenes para listar
+        
+        # Contar imágenes para cada dataset
+        for dataset in datasets:
+            dataset_id = str(dataset['_id'])
+            image_count = db.images.count_documents({'dataset_id': dataset_id})
+            dataset['image_count'] = image_count
+        
+        return jsonify({
+            'datasets': [serialize_doc(ds) for ds in datasets]
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener datasets: {str(e)}'}), 500
+
+@app.route('/api/datasets', methods=['POST'])
+def create_dataset():
+    """Crear un nuevo dataset"""
+    try:
+        data = request.get_json()
+        
+        if not data or 'name' not in data:
+            return jsonify({'error': 'name es requerido'}), 400
+        
+        db = get_db()
+        
+        # Verificar que no existe un dataset con el mismo nombre
+        existing = db.datasets.find_one({'name': data['name']})
+        if existing:
+            return jsonify({'error': 'Ya existe un dataset con ese nombre'}), 400
+        
+        # Crear documento de dataset
+        dataset_doc = {
+            'name': data['name'],
+            'description': data.get('description', ''),
+            'folder_path': f"/datasets/{data['name']}",
+            'categories': data.get('categories', []),
+            'created_date': datetime.utcnow(),
+            'created_by': data.get('created_by', 'usuario'),
+            'image_count': 0
+        }
+        
+        # Insertar en MongoDB
+        result = db.datasets.insert_one(dataset_doc)
+        dataset_doc['_id'] = str(result.inserted_id)
+        
+        # Crear directorio físico
+        dataset_folder = os.path.join(IMAGE_FOLDER, data['name'])
+        os.makedirs(dataset_folder, exist_ok=True)
+        
+        return jsonify({
+            'message': 'Dataset creado correctamente',
+            'dataset': serialize_doc(dataset_doc)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al crear dataset: {str(e)}'}), 500
+
+@app.route('/api/datasets/<dataset_id>', methods=['GET'])
+def get_dataset(dataset_id):
+    """Obtener un dataset específico con sus imágenes"""
+    try:
+        db = get_db()
+        
+        if not ObjectId.is_valid(dataset_id):
+            return jsonify({'error': 'ID de dataset inválido'}), 400
+            
+        dataset = db.datasets.find_one({'_id': ObjectId(dataset_id)})
+        
+        if not dataset:
+            return jsonify({'error': 'Dataset no encontrado'}), 404
+        
+        # Obtener imágenes del dataset
+        images = list(db.images.find(
+            {'dataset_id': dataset_id},
+            {'data': 0}  # Excluir datos binarios para listar
+        ))
+        
+        dataset['images'] = [serialize_doc(img) for img in images]
+        dataset['image_count'] = len(images)
+        
+        return jsonify({
+            'dataset': serialize_doc(dataset)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener dataset: {str(e)}'}), 500
+
+@app.route('/api/datasets/<dataset_id>', methods=['DELETE'])
+def delete_dataset(dataset_id):
+    """Eliminar un dataset y todas sus imágenes/anotaciones"""
+    try:
+        db = get_db()
+        
+        if not ObjectId.is_valid(dataset_id):
+            return jsonify({'error': 'ID de dataset inválido'}), 400
+        
+        # Verificar que existe
+        dataset = db.datasets.find_one({'_id': ObjectId(dataset_id)})
+        if not dataset:
+            return jsonify({'error': 'Dataset no encontrado'}), 404
+        
+        dataset_name = dataset.get('name')
+        deleted_files = 0
+        deleted_folder = False
+        
+        # Obtener todas las imágenes del dataset para eliminar anotaciones
+        images = list(db.images.find({'dataset_id': dataset_id}))
+        
+        # Eliminar anotaciones de todas las imágenes
+        for img in images:
+            db.annotations.delete_many({'image_id': str(img['_id'])})
+        
+        # Eliminar todas las imágenes del dataset de la base de datos
+        images_result = db.images.delete_many({'dataset_id': dataset_id})
+        
+        # Eliminar carpeta física completa del dataset
+        if dataset_name:
+            dataset_folder = os.path.join(IMAGE_FOLDER, dataset_name)
+            try:
+                if os.path.exists(dataset_folder):
+                    import shutil
+                    shutil.rmtree(dataset_folder)
+                    deleted_folder = True
+                    print(f"Carpeta del dataset eliminada: {dataset_folder}")
+                else:
+                    print(f"Carpeta del dataset no encontrada: {dataset_folder}")
+            except Exception as folder_error:
+                print(f"Error al eliminar carpeta del dataset {dataset_folder}: {str(folder_error)}")
+                # No fallar la operación completa si solo falla la eliminación de la carpeta
+        
+        # Eliminar el dataset de la base de datos
+        dataset_result = db.datasets.delete_one({'_id': ObjectId(dataset_id)})
+        
+        return jsonify({
+            'message': 'Dataset eliminado correctamente',
+            'deleted_images': images_result.deleted_count,
+            'deleted_folder': deleted_folder,
+            'dataset_name': dataset_name
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al eliminar dataset: {str(e)}'}), 500
+
+@app.route('/api/datasets/import', methods=['POST'])
+def import_dataset_zip():
+    """Importar un dataset desde un archivo ZIP"""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No se encontró ningún archivo'}), 400
+
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'Nombre de archivo vacío'}), 400
+        
+        if not file.filename.lower().endswith('.zip'):
+            return jsonify({'error': 'Solo se permiten archivos ZIP'}), 400
+
+        dataset_name = request.form.get('name') or file.filename.replace('.zip', '')
+        
+        db = get_db()
+        
+        # Verificar que no existe un dataset con el mismo nombre
+        existing = db.datasets.find_one({'name': dataset_name})
+        if existing:
+            return jsonify({'error': 'Ya existe un dataset con ese nombre'}), 400
+        
+        # Crear dataset
+        dataset_doc = {
+            'name': dataset_name,
+            'description': f'Importado desde {file.filename}',
+            'folder_path': f"/datasets/{dataset_name}",
+            'categories': [],
+            'created_date': datetime.utcnow(),
+            'created_by': 'usuario',
+            'image_count': 0
+        }
+        
+        result = db.datasets.insert_one(dataset_doc)
+        dataset_id = str(result.inserted_id)
+        
+        # Crear directorio
+        dataset_folder = os.path.join(IMAGE_FOLDER, dataset_name)
+        os.makedirs(dataset_folder, exist_ok=True)
+        
+        # Descomprimir ZIP
+        import zipfile
+        import tempfile
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            zip_path = os.path.join(temp_dir, file.filename)
+            file.save(zip_path)
+            
+            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+                zip_ref.extractall(dataset_folder)
+        
+        # Procesar imágenes encontradas
+        image_count = 0
+        supported_formats = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp'}
+        
+        for root, dirs, files in os.walk(dataset_folder):
+            for filename in files:
+                if any(filename.lower().endswith(ext) for ext in supported_formats):
+                    file_path = os.path.join(root, filename)
+                    
+                    try:
+                        # Leer y procesar imagen
+                        with open(file_path, 'rb') as img_file:
+                            image_data = img_file.read()
+                        
+                        pil_image = Image.open(io.BytesIO(image_data))
+                        width, height = pil_image.size
+                        
+                        # Convertir a base64 para MongoDB
+                        image_base64 = base64.b64encode(image_data).decode('utf-8')
+                        
+                        # Crear documento de imagen
+                        image_doc = {
+                            'filename': filename,
+                            'original_name': filename,
+                            'data': image_base64,
+                            'content_type': f'image/{filename.split(".")[-1].lower()}',
+                            'size': len(image_data),
+                            'width': width,
+                            'height': height,
+                            'upload_date': datetime.utcnow(),
+                            'dataset_id': dataset_id
+                        }
+                        
+                        db.images.insert_one(image_doc)
+                        image_count += 1
+                        
+                    except Exception as e:
+                        print(f"Error procesando imagen {filename}: {e}")
+                        continue
+        
+        # Actualizar contador de imágenes
+        db.datasets.update_one(
+            {'_id': ObjectId(dataset_id)},
+            {'$set': {'image_count': image_count}}
+        )
+        
+        return jsonify({
+            'message': f'Dataset importado correctamente con {image_count} imágenes',
+            'dataset_id': dataset_id,
+            'image_count': image_count
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al importar dataset: {str(e)}'}), 500
 
 # ==================== HEALTH CHECK ====================
 

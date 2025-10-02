@@ -53,7 +53,8 @@ const store = useAnnotationStore()
 const emit = defineEmits(['files-uploaded', 'image-clicked'])
 
 const props = defineProps({
-  currentImage: Object // Para mostrar la imagen actual seleccionada
+  currentImage: Object, // Para mostrar la imagen actual seleccionada
+  datasetId: String // ID del dataset al que subir las imágenes
 })
 
 const fileInput = ref(null)
@@ -126,7 +127,7 @@ const uploadFiles = async (fileList) => {
       // Solo procesar imágenes
       if (file.type.startsWith('image/')) {
         try {
-          const uploadedImage = await store.uploadImage(file)
+          const uploadedImage = await store.uploadImage(file, props.datasetId)
           uploadedImages.push(uploadedImage)
           
           // Para la primera imagen, mostrar preview
