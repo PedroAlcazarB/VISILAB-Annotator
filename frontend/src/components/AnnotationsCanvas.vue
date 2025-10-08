@@ -182,6 +182,8 @@ const props = defineProps({
   }
 })
 
+const emit = defineEmits(['annotation-saved', 'annotation-deleted'])
+
 const image = ref(null)
 const imageConfig = reactive({
   image: null,
@@ -470,6 +472,7 @@ async function completeBBox() {
         ],
         type: 'bbox'
       })
+      emit('annotation-saved')
     } catch (error) {
       console.error('Error al crear anotación bbox:', error)
     }
@@ -492,6 +495,7 @@ async function completePolygon() {
         type: 'polygon',
         points: currentPath.value
       })
+      emit('annotation-saved')
     } catch (error) {
       console.error('Error al crear anotación polígono:', error)
     }
@@ -517,6 +521,7 @@ async function completeBrush() {
         type: 'brush',
         points: brushPath.value
       })
+      emit('annotation-saved')
     } catch (error) {
       console.error('Error al crear anotación brush:', error)
     }
@@ -540,6 +545,7 @@ async function eraseAtPosition(pos) {
     if (distance < eraserRadius.value) {
       try {
         await store.removeAnnotation(ann._id)
+        emit('annotation-saved') // También emitimos cuando se elimina para actualizar contador
       } catch (error) {
         console.error('Error al eliminar anotación:', error)
       }
@@ -555,6 +561,7 @@ async function createKeypoint(pos) {
       type: 'keypoint',
       center: { x: pos.x, y: pos.y }
     })
+    emit('annotation-saved')
   } catch (error) {
     console.error('Error al crear anotación keypoint:', error)
   }

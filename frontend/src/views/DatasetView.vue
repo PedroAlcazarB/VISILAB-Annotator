@@ -67,7 +67,7 @@
             <div class="image-info">
               <p class="filename">{{ image.filename }}</p>
               <p class="annotations-count">
-                {{ getAnnotationCount(image._id) }} annotations
+                {{ getAnnotationCount(image) }} annotations
               </p>
             </div>
             <div class="image-actions">
@@ -168,7 +168,10 @@ export default {
       return this.store.annotations
     },
     totalAnnotations() {
-      return this.annotations.length
+      // Sumar todos los contadores de anotaciones de las imágenes
+      return this.images.reduce((total, image) => {
+        return total + (image.annotation_count || 0)
+      }, 0)
     }
   },
   mounted() {
@@ -192,8 +195,13 @@ export default {
       }
     },
     
-    getAnnotationCount(imageId) {
-      return this.store.getAnnotationsByImageId(imageId).length
+    getAnnotationCount(image) {
+      // Si la imagen tiene annotation_count del backend, usarlo
+      if (image.annotation_count !== undefined) {
+        return image.annotation_count
+      }
+      // Fallback al store si las anotaciones están cargadas
+      return this.store.getAnnotationsByImageId(image._id).length
     },
     
     async deleteImage(image) {
@@ -244,7 +252,17 @@ export default {
     },
     
     handleAnnotationSaved() {
-      // El store maneja las actualizaciones automáticamente
+      // Actualizar el contador de anotaciones en la imagen actual
+      if (this.selectedImage) {
+        const updatedCount = this.store.getAnnotationsByImageId(this.selectedImage._id).length
+        this.selectedImage.annotation_count = updatedCount
+        
+        // Buscar la imagen en la lista de images y actualizar su contador también
+        const imageInList = this.images.find(img => img._id === this.selectedImage._id)
+        if (imageInList) {
+          imageInList.annotation_count = updatedCount
+        }
+      }
     },
     
     goBack() {

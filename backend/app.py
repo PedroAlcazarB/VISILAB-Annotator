@@ -116,20 +116,24 @@ def get_images():
             query_filter['dataset_id'] = dataset_id
         else:
             query_filter['project_id'] = project_id
-        
+
         images = list(db.images.find(
             query_filter,
             {'data': 0}  # Excluir datos binarios para listar
         ))
+        
+        # Agregar contador de anotaciones para cada imagen
+        for image in images:
+            image_id = str(image['_id'])
+            annotation_count = db.annotations.count_documents({'image_id': image_id})
+            image['annotation_count'] = annotation_count
         
         return jsonify({
             'images': [serialize_doc(img) for img in images]
         })
         
     except Exception as e:
-        return jsonify({'error': f'Error al obtener imágenes: {str(e)}'}), 500
-
-@app.route('/api/images/<image_id>', methods=['GET'])
+        return jsonify({'error': f'Error al obtener imágenes: {str(e)}'}), 500@app.route('/api/images/<image_id>', methods=['GET'])
 def get_image(image_id):
     """Obtener una imagen específica"""
     try:
