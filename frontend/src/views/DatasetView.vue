@@ -13,6 +13,12 @@
       </div>
       
       <div class="header-actions">
+        <button @click="showExportModal = true" class="btn btn-warning">
+          <i class="fas fa-file-export"></i> Exportar Anotaciones
+        </button>
+        <button @click="showImportModal = true" class="btn btn-info">
+          <i class="fas fa-file-import"></i> Importar Anotaciones
+        </button>
         <button @click="showUploadModal = true" class="btn btn-success">
           <i class="fas fa-upload"></i> Subir Imágenes
         </button>
@@ -97,6 +103,21 @@
       </div>
     </div>
 
+    <!-- Modal de importación de anotaciones -->
+    <ImportAnnotations 
+      :show="showImportModal"
+      :dataset-id="dataset._id"
+      @close="showImportModal = false"
+      @import-complete="handleImportComplete"
+    />
+
+    <!-- Modal de exportación de anotaciones -->
+    <ExportAnnotations 
+      :show="showExportModal"
+      :dataset-id="dataset._id"
+      @close="showExportModal = false"
+    />
+
     <!-- Modal del anotador -->
     <div v-if="selectedImage" class="annotator-modal">
       <div class="annotator-header">
@@ -130,6 +151,8 @@
 
 <script>
 import ImageUploader from '../components/ImageUploader.vue'
+import ImportAnnotations from '../components/ImportAnnotations.vue'
+import ExportAnnotations from '../components/ExportAnnotations.vue'
 import AnnotationsCanvas from '../components/AnnotationsCanvas.vue'
 import AnnotationToolbar from '../components/AnnotationToolbar.vue'
 import CategoryManager from '../components/CategoryManager.vue'
@@ -139,6 +162,8 @@ export default {
   name: 'DatasetView',
   components: {
     ImageUploader,
+    ImportAnnotations,
+    ExportAnnotations,
     AnnotationsCanvas,
     AnnotationToolbar,
     CategoryManager
@@ -157,6 +182,8 @@ export default {
     return {
       loading: false,
       showUploadModal: false,
+      showImportModal: false,
+      showExportModal: false,
       selectedImage: null
     }
   },
@@ -226,6 +253,20 @@ export default {
         await this.store.loadImages(this.dataset._id)
       } catch (error) {
         console.error('Error reloading images after upload:', error)
+      }
+    },
+    
+    async handleImportComplete(result) {
+      this.showImportModal = false
+      console.log('Import completed:', result)
+      
+      // Recargar imágenes y anotaciones para actualizar la vista
+      try {
+        await this.store.loadImages(this.dataset._id)
+        // También podríamos mostrar un mensaje de éxito
+        alert(`✅ Importación completada: ${result.stats.annotations} anotaciones importadas`)
+      } catch (error) {
+        console.error('Error reloading data after import:', error)
       }
     },
     
@@ -338,6 +379,26 @@ export default {
 .btn-success {
   background-color: #28a745;
   color: white;
+}
+
+.btn-info {
+  background-color: #17a2b8;
+  color: white;
+  margin-right: 10px;
+}
+
+.btn-info:hover {
+  background-color: #138496;
+}
+
+.btn-warning {
+  background-color: #ff9800;
+  color: white;
+  margin-right: 10px;
+}
+
+.btn-warning:hover {
+  background-color: #f57c00;
 }
 
 .btn-primary {
