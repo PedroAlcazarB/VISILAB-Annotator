@@ -116,26 +116,9 @@
             </label>
           </div>
 
-          <!-- Opción para subir imágenes (opcional) -->
-          <div class="upload-box optional">
-            <label class="file-input-label">
-              <input 
-                type="file" 
-                accept=".zip" 
-                @change="handleFileSelect($event, 'images')"
-                class="file-input"
-              />
-              <div class="upload-content">
-                <i class="fas fa-images"></i>
-                <p v-if="!imagesFile">
-                  <strong>Opcional:</strong> ZIP con imágenes
-                </p>
-                <p v-else class="file-selected">
-                  <i class="fas fa-check-circle"></i> {{ imagesFile.name }}
-                </p>
-                <small>Si no subes imágenes, las anotaciones se asociarán con las existentes</small>
-              </div>
-            </label>
+          <div class="upload-note">
+            <i class="fas fa-info-circle"></i>
+            <p>Las anotaciones se asociarán automáticamente con las imágenes existentes en el dataset por nombre de archivo.</p>
           </div>
         </div>
 
@@ -196,7 +179,6 @@ const emit = defineEmits(['close', 'import-complete'])
 
 const selectedFormat = ref('coco')
 const annotationsFile = ref(null)
-const imagesFile = ref(null)
 const uploading = ref(false)
 const uploadProgress = ref(0)
 const uploadMessage = ref('')
@@ -211,8 +193,6 @@ function handleFileSelect(event, type) {
   if (file) {
     if (type === 'annotations') {
       annotationsFile.value = file
-    } else if (type === 'images') {
-      imagesFile.value = file
     }
     importResult.value = null // Limpiar resultado anterior
   }
@@ -230,10 +210,6 @@ async function importAnnotations() {
     const formData = new FormData()
     formData.append('format', selectedFormat.value)
     formData.append('annotations', annotationsFile.value)
-    
-    if (imagesFile.value) {
-      formData.append('images', imagesFile.value)
-    }
     
     if (props.datasetId) {
       formData.append('dataset_id', props.datasetId)
@@ -285,7 +261,6 @@ async function importAnnotations() {
 function resetForm() {
   selectedFormat.value = 'coco'
   annotationsFile.value = null
-  imagesFile.value = null
   uploadProgress.value = 0
   uploadMessage.value = ''
   importResult.value = null
@@ -471,8 +446,29 @@ function closeModal() {
   margin-bottom: 1rem;
 }
 
-.upload-box.optional {
-  opacity: 0.8;
+.upload-note {
+  background: #f0f9ff;
+  border: 1px solid #bae6fd;
+  border-radius: 6px;
+  padding: 1rem;
+  margin-top: 1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.upload-note i {
+  color: #0284c7;
+  font-size: 1.1rem;
+  margin-top: 0.1rem;
+  flex-shrink: 0;
+}
+
+.upload-note p {
+  margin: 0;
+  color: #0c4a6e;
+  font-size: 0.9rem;
+  line-height: 1.4;
 }
 
 .file-input-label {

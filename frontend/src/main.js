@@ -6,6 +6,7 @@ import VueKonva from 'vue-konva'
 
 import HomeView from './views/HomeView.vue'
 import ProjectView from './views/ProjectView.vue'
+import CategoriesView from './views/CategoriesView.vue'
 
 const app = createApp(App)
 app.use(VueKonva)
@@ -20,7 +21,8 @@ const router = createRouter({
   routes: [
     { path: '/', component: HomeView },
     { path: '/projects', component: ProjectView },
-    { path: '/projects/:id', component: ProjectView }
+    { path: '/projects/:id', component: ProjectView },
+    { path: '/categories', component: CategoriesView }
   ]
 })
 app.use(router)

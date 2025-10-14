@@ -41,20 +41,35 @@
 
     <!-- Lista de categorías existentes -->
     <div class="categories-list">
+      <div v-if="loading" class="loading-state">
+        <i class="fas fa-spinner fa-spin"></i>
+        <p>Cargando categorías...</p>
+      </div>
+      
+      <div v-else-if="categories.length === 0" class="empty-state">
+        <p>No hay categorías disponibles</p>
+        <button @click="showAddForm = true" class="btn-primary">
+          Crear primera categoría
+        </button>
+      </div>
+      
       <div 
+        v-else
         v-for="category in categories" 
-        :key="category.id" 
+        :key="category.id || category._id" 
         class="category-item"
-        :class="{ 'active': selectedCategory === category.id }"
-        @click="selectCategory(category.id)"
+        :class="{ 'active': selectedCategory === (category.id || category._id) }"
+        @click="selectCategory(category.id || category._id)"
       >
         <div class="category-info">
           <div 
             class="category-color" 
             :style="{ backgroundColor: category.color }"
           ></div>
-          <span class="category-name">{{ category.name }}</span>
-          <span class="category-count">({{ getCategoryAnnotationCount(category.id) }})</span>
+          <div class="category-details">
+            <span class="category-name">{{ category.name }}</span>
+          </div>
+          <span class="category-count">({{ getCategoryAnnotationCount(category.id || category._id) }})</span>
         </div>
         <div class="category-actions">
           <button 
@@ -65,10 +80,10 @@
             ✏️
           </button>
           <button 
-            @click.stop="deleteCategory(category.id)" 
+            @click.stop="deleteCategory(category.id || category._id)" 
             class="btn-delete"
             title="Eliminar categoría"
-            v-if="category.id !== 1"
+            v-if="(category.id || category._id) !== 1"
           >
             🗑️
           </button>
@@ -121,7 +136,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useAnnotationStore } from '../stores/annotationStore'
 
 const store = useAnnotationStore()
@@ -136,20 +151,25 @@ const newCategory = ref({
 const categories = computed(() => store.categories)
 const selectedCategory = computed(() => store.selectedCategory)
 const annotations = computed(() => store.annotations)
+const loading = computed(() => store.loading)
 
 const selectedCategoryInfo = computed(() => {
-  return categories.value.find(cat => cat.id === selectedCategory.value)
+  return categories.value.find(cat => (cat.id || cat._id) === selectedCategory.value)
 })
 
-function addCategory() {
+async function addCategory() {
   if (!newCategory.value.name.trim()) return
   
-  store.addCategory({
-    name: newCategory.value.name.trim(),
-    color: newCategory.value.color
-  })
-  
-  cancelAdd()
+  try {
+    await store.addCategory({
+      name: newCategory.value.name.trim(),
+      color: newCategory.value.color
+    })
+    
+    cancelAdd()
+  } catch (error) {
+    // El error ya se maneja en el store
+  }
 }
 
 function cancelAdd() {
@@ -165,13 +185,20 @@ function selectCategory(categoryId) {
 }
 
 function editCategory(category) {
-  editingCategory.value = { ...category }
+  editingCategory.value = { 
+    ...category,
+    id: category.id || category._id
+  }
 }
 
-function saveEdit() {
-  if (editingCategory.value) {
-    store.updateCategory(editingCategory.value)
+async function saveEdit() {
+  if (!editingCategory.value) return
+  
+  try {
+    await store.updateCategory(editingCategory.value)
     editingCategory.value = null
+  } catch (error) {
+    // El error ya se maneja en el store
   }
 }
 
@@ -179,15 +206,39 @@ function cancelEdit() {
   editingCategory.value = null
 }
 
-function deleteCategory(categoryId) {
-  if (confirm('¿Estás seguro de que quieres eliminar esta categoría? Las anotaciones asociadas se mantendrán pero perderán la categoría.')) {
-    store.deleteCategory(categoryId)
+async function deleteCategory(categoryId) {
+  const category = categories.value.find(cat => (cat.id || cat._id) === categoryId)
+  if (!category) return
+  
+  const annotationCount = getCategoryAnnotationCount(categoryId)
+  if (annotationCount > 0) {
+    alert(`No se puede eliminar la categoría "${category.name}" porque tiene ${annotationCount} anotaciones asociadas.`)
+    return
+  }
+  
+  if (!confirm(`¿Estás seguro de que quieres eliminar la categoría "${category.name}"?`)) {
+    return
+  }
+  
+  try {
+    await store.deleteCategory(categoryId)
+  } catch (error) {
+    // El error ya se maneja en el store
   }
 }
 
 function getCategoryAnnotationCount(categoryId) {
-  return annotations.value.filter(ann => ann.category_id === categoryId).length
+  return annotations.value.filter(ann => 
+    ann.category_id === categoryId || ann.category === categoryId
+  ).length
 }
+
+// Cargar categorías al montar el componente
+onMounted(() => {
+  if (categories.value.length === 0) {
+    store.loadCategories()
+  }
+})
 </script>
 
 <style scoped>
@@ -305,6 +356,22 @@ function getCategoryAnnotationCount(categoryId) {
   margin-bottom: 1rem;
 }
 
+.loading-state, .empty-state {
+  text-align: center;
+  padding: 2rem;
+  color: #6c757d;
+}
+
+.loading-state i {
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+  color: #3498db;
+}
+
+.empty-state p {
+  margin-bottom: 1rem;
+}
+
 .category-item {
   display: flex;
   justify-content: space-between;
@@ -333,17 +400,10 @@ function getCategoryAnnotationCount(categoryId) {
   gap: 0.75rem;
 }
 
-.category-color {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-}
-
-.category-color.small {
-  width: 16px;
-  height: 16px;
+.category-details {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .category-name {
@@ -354,6 +414,21 @@ function getCategoryAnnotationCount(categoryId) {
 .category-count {
   color: #7f8c8d;
   font-size: 0.9rem;
+  margin-left: auto;
+}
+
+.category-color {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  flex-shrink: 0;
+}
+
+.category-color.small {
+  width: 16px;
+  height: 16px;
 }
 
 .category-actions {

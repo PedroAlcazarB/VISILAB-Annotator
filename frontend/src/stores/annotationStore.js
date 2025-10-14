@@ -343,6 +343,140 @@ export const useAnnotationStore = defineStore('annotation', {
     
     // ==================== APIS DE CATEGORÍAS ====================
     
+    async loadCategories() {
+      this.loading = true
+      this.clearError()
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/categories/data`)
+        
+        if (!response.ok) {
+          throw new Error(`Error HTTP: ${response.status}`)
+        }
+        
+        const data = await response.json()
+        this.categories = data.categories || []
+        
+        // Establecer categoría por defecto si no hay una seleccionada
+        if (!this.selectedCategory && this.categories.length > 0) {
+          this.selectedCategory = this.categories[0].id || this.categories[0]._id
+        }
+        
+      } catch (error) {
+        this.setError(`Error al cargar categorías: ${error.message}`)
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+    
+    async addCategory(categoryData) {
+      this.loading = true
+      this.clearError()
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/categories`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(categoryData)
+        })
+        
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Error al crear categoría')
+        }
+        
+        const data = await response.json()
+        
+        // Recargar categorías para mantener consistencia
+        await this.loadCategories()
+        
+        return data.category
+      } catch (error) {
+        this.setError(`Error al crear categoría: ${error.message}`)
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+    
+    async updateCategory(categoryData) {
+      this.loading = true
+      this.clearError()
+      
+      try {
+        const categoryId = categoryData.id || categoryData._id
+        const response = await fetch(`${API_BASE_URL}/categories/${categoryId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: categoryData.name,
+            color: categoryData.color,
+            supercategory: categoryData.supercategory
+          })
+        })
+        
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Error al actualizar categoría')
+        }
+        
+        const data = await response.json()
+        
+        // Recargar categorías para mantener consistencia
+        await this.loadCategories()
+        
+        return data.category
+      } catch (error) {
+        this.setError(`Error al actualizar categoría: ${error.message}`)
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+    
+    async deleteCategory(categoryId) {
+      this.loading = true
+      this.clearError()
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/categories/${categoryId}`, {
+          method: 'DELETE'
+        })
+        
+        if (!response.ok) {
+          const errorData = await response.json()
+          throw new Error(errorData.error || 'Error al eliminar categoría')
+        }
+        
+        // Si era la categoría seleccionada, cambiar a otra
+        if (this.selectedCategory === categoryId) {
+          const remainingCategories = this.categories.filter(cat => 
+            (cat.id || cat._id) !== categoryId
+          )
+          this.selectedCategory = remainingCategories.length > 0 ? 
+            (remainingCategories[0].id || remainingCategories[0]._id) : null
+        }
+        
+        // Recargar categorías para mantener consistencia
+        await this.loadCategories()
+        
+      } catch (error) {
+        this.setError(`Error al eliminar categoría: ${error.message}`)
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+    
+    setSelectedCategory(categoryId) {
+      this.selectedCategory = categoryId
+    },
+    
     async loadCategories(datasetId = null) {
       this.loading = true
       this.clearError()

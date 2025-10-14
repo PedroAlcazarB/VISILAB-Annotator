@@ -434,6 +434,118 @@ def create_category():
     except Exception as e:
         return jsonify({'error': f'Error al crear categoría: {str(e)}'}), 500
 
+@app.route('/api/categories/<category_id>', methods=['GET'])
+def get_category(category_id):
+    """Obtener una categoría por ID"""
+    try:
+        db = get_db()
+        category = db.categories.find_one({'_id': ObjectId(category_id)})
+        
+        if not category:
+            return jsonify({'error': 'Categoría no encontrada'}), 404
+        
+        return jsonify({
+            'category': serialize_doc(category)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener categoría: {str(e)}'}), 500
+
+@app.route('/api/categories/<category_id>', methods=['PUT'])
+def update_category(category_id):
+    """Actualizar una categoría existente"""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'Datos requeridos'}), 400
+        
+        db = get_db()
+        
+        # Preparar campos actualizables
+        update_fields = {}
+        if 'name' in data:
+            update_fields['name'] = data['name']
+        if 'color' in data:
+            update_fields['color'] = data['color']
+        
+        if not update_fields:
+            return jsonify({'error': 'No hay campos para actualizar'}), 400
+        
+        update_fields['updated_date'] = datetime.utcnow()
+        
+        # Actualizar en MongoDB
+        result = db.categories.update_one(
+            {'_id': ObjectId(category_id)},
+            {'$set': update_fields}
+        )
+        
+        if result.matched_count == 0:
+            return jsonify({'error': 'Categoría no encontrada'}), 404
+        
+        # Obtener categoría actualizada
+        updated_category = db.categories.find_one({'_id': ObjectId(category_id)})
+        
+        return jsonify({
+            'message': 'Categoría actualizada correctamente',
+            'category': serialize_doc(updated_category)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al actualizar categoría: {str(e)}'}), 500
+
+@app.route('/api/categories/<category_id>', methods=['DELETE'])
+def delete_category(category_id):
+    """Eliminar una categoría"""
+    try:
+        db = get_db()
+        
+        # Verificar si existen anotaciones con esta categoría
+        annotation_count = db.annotations.count_documents({'category_id': category_id})
+        
+        if annotation_count > 0:
+            return jsonify({
+                'error': f'No se puede eliminar la categoría. Tiene {annotation_count} anotaciones asociadas.',
+                'annotation_count': annotation_count
+            }), 400
+        
+        # Eliminar categoría
+        result = db.categories.delete_one({'_id': ObjectId(category_id)})
+        
+        if result.deleted_count == 0:
+            return jsonify({'error': 'Categoría no encontrada'}), 404
+        
+        return jsonify({
+            'message': 'Categoría eliminada correctamente'
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al eliminar categoría: {str(e)}'}), 500
+
+@app.route('/api/categories/data', methods=['GET'])
+def get_categories_data():
+    """Obtener estadísticas de categorías con conteo de anotaciones"""
+    try:
+        db = get_db()
+        project_id = request.args.get('project_id', 'default')
+        
+        # Obtener todas las categorías
+        categories = list(db.categories.find({'project_id': project_id}))
+        
+        # Contar anotaciones por categoría
+        for category in categories:
+            category_id = str(category['_id'])
+            annotation_count = db.annotations.count_documents({'category_id': category_id})
+            category['numberAnnotations'] = annotation_count
+            category['creator'] = category.get('creator', 'system')
+        
+        return jsonify({
+            'categories': [serialize_doc(cat) for cat in categories]
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener datos de categorías: {str(e)}'}), 500
+
 # ==================== ENDPOINTS PARA DATASETS ====================
 
 @app.route('/api/datasets', methods=['GET'])
@@ -1275,17 +1387,26 @@ def export_annotations(dataset_id):
         
         # Obtener imágenes
         image_query = {'dataset_id': dataset_id}
-        if only_annotated:
-            image_query['annotation_count'] = {'$gt': 0}
-        
         images = list(db.images.find(image_query))
+        
+        # Si only_annotated está activado, filtrar solo las que tienen anotaciones
+        if only_annotated:
+            image_ids = [str(img['_id']) for img in images]
+            annotated_image_ids = db.annotations.distinct('image_id', {'image_id': {'$in': image_ids}})
+            images = [img for img in images if str(img['_id']) in annotated_image_ids]
         
         # Obtener todas las anotaciones del dataset
         image_ids = [str(img['_id']) for img in images]
         annotations = list(db.annotations.find({'image_id': {'$in': image_ids}}))
         
+        print(f"Exportando: {len(images)} imágenes, {len(annotations)} anotaciones, {len(categories)} categorías")
+        
         # Obtener categorías
-        categories = list(db.categories.find({'dataset_id': dataset_id}))
+        categories = list(db.categories.find({'project_id': dataset.get('project_id', 'default')}))
+        
+        # Si no hay categorías específicas del proyecto, obtener todas
+        if not categories:
+            categories = list(db.categories.find())
         
         if export_format == 'coco':
             return export_coco_format(dataset, images, annotations, categories, include_images)
@@ -1329,7 +1450,7 @@ def export_coco_format(dataset, images, annotations, categories, include_images)
         coco_data['categories'].append({
             'id': cat_id,
             'name': cat['name'],
-            'supercategory': cat.get('supercategory', 'object'),
+            'supercategory': 'object',
             'color': cat.get('color', '#FF0000')
         })
     

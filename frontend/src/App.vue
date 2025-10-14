@@ -7,6 +7,7 @@
         <nav>
           <a href="#" class="nav-link active">Inicio</a>
           <a href="#" class="nav-link" @click="goToDatasets">Anotador</a>
+          <a href="#" class="nav-link" @click="goToCategories">Categorías</a>
         </nav>
       </header>
       
@@ -26,10 +27,25 @@
         <nav>
           <a href="#" class="nav-link" @click="goToWelcome">Inicio</a>
           <a href="#" class="nav-link active">Anotador</a>
+          <a href="#" class="nav-link" @click="goToCategories">Categorías</a>
         </nav>
       </header>
       
       <DatasetManager @dataset-selected="selectDataset" />
+    </div>
+
+    <!-- Gestión de categorías -->
+    <div v-else-if="currentView === 'categories'" class="categories-screen">
+      <header class="app-header">
+        <h1>VISILAB Annotator</h1>
+        <nav>
+          <a href="#" class="nav-link" @click="goToWelcome">Inicio</a>
+          <a href="#" class="nav-link" @click="goToDatasets">Anotador</a>
+          <a href="#" class="nav-link active">Categorías</a>
+        </nav>
+      </header>
+      
+      <CategoriesView />
     </div>
 
     <!-- Vista individual de dataset -->
@@ -45,16 +61,18 @@
 <script>
 import DatasetManager from './components/DatasetManager.vue'
 import DatasetView from './views/DatasetView.vue'
+import CategoriesView from './views/CategoriesView.vue'
 
 export default {
   name: 'App',
   components: {
     DatasetManager,
-    DatasetView
+    DatasetView,
+    CategoriesView
   },
   data() {
     return {
-      currentView: 'welcome', // 'welcome', 'datasets', 'dataset'
+      currentView: 'welcome', // 'welcome', 'datasets', 'dataset', 'categories'
       selectedDataset: null
     }
   },
@@ -66,6 +84,11 @@ export default {
     
     goToDatasets() {
       this.currentView = 'datasets'
+      this.selectedDataset = null
+    },
+    
+    goToCategories() {
+      this.currentView = 'categories'
       this.selectedDataset = null
     },
     
