@@ -29,6 +29,116 @@ def serialize_doc(doc):
         doc['_id'] = str(doc['_id'])
     return doc
 
+# ==================== FUNCIONES AUXILIARES PARA PROCESAMIENTO DE IMÁGENES ====================
+
+def find_images_in_directory(directory_path, max_depth=3):
+    """
+    Buscar recursivamente todas las imágenes en un directorio y sus subcarpetas
+    
+    Args:
+        directory_path: Ruta del directorio a buscar
+        max_depth: Profundidad máxima de búsqueda (evita bucles infinitos)
+    
+    Returns:
+        Lista de tuplas (file_path, filename, relative_path)
+    """
+    supported_formats = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.tif', '.webp', '.gif'}
+    found_images = []
+    
+    for root, dirs, files in os.walk(directory_path):
+        # Calcular profundidad actual
+        depth = root[len(directory_path):].count(os.sep)
+        if depth >= max_depth:
+            dirs.clear()  # No buscar más profundo
+            continue
+            
+        for filename in files:
+            # Verificar extensión
+            file_ext = os.path.splitext(filename)[1].lower()
+            if file_ext in supported_formats:
+                file_path = os.path.join(root, filename)
+                
+                # Validar que es una imagen real
+                try:
+                    with Image.open(file_path) as img:
+                        # Verificar que no es un archivo corrupto
+                        img.verify()
+                        
+                    # Calcular ruta relativa desde el directorio base
+                    relative_path = os.path.relpath(file_path, directory_path)
+                    found_images.append((file_path, filename, relative_path))
+                    
+                except Exception as e:
+                    print(f"Archivo no válido ignorado: {filename} - {str(e)}")
+                    continue
+    
+    return found_images
+
+def extract_and_find_images(zip_file_path, extract_path):
+    """
+    Extraer ZIP y buscar imágenes automáticamente gestionando subcarpetas
+    
+    Args:
+        zip_file_path: Ruta del archivo ZIP
+        extract_path: Directorio donde extraer las imágenes finales
+    
+    Returns:
+        Lista de imágenes encontradas y procesadas
+    """
+    import shutil
+    
+    try:
+        # Crear directorio temporal para extracción
+        temp_extract_dir = os.path.join(extract_path, 'temp_extract')
+        os.makedirs(temp_extract_dir, exist_ok=True)
+        
+        # Extraer ZIP
+        with zipfile.ZipFile(zip_file_path, 'r') as zip_ref:
+            zip_ref.extractall(temp_extract_dir)
+        
+        # Buscar imágenes recursivamente
+        found_images = find_images_in_directory(temp_extract_dir)
+        
+        print(f"Encontradas {len(found_images)} imágenes en el ZIP")
+        
+        # Mover imágenes al directorio final y organizar
+        final_images = []
+        for file_path, filename, relative_path in found_images:
+            try:
+                # Crear nombre único si hay duplicados
+                final_filename = filename
+                counter = 1
+                while os.path.exists(os.path.join(extract_path, final_filename)):
+                    name, ext = os.path.splitext(filename)
+                    final_filename = f"{name}_{counter}{ext}"
+                    counter += 1
+                
+                # Mover imagen al directorio final
+                final_path = os.path.join(extract_path, final_filename)
+                shutil.move(file_path, final_path)
+                
+                final_images.append({
+                    'file_path': final_path,
+                    'filename': final_filename,
+                    'original_path': relative_path
+                })
+                
+            except Exception as e:
+                print(f"Error moviendo imagen {filename}: {str(e)}")
+                continue
+        
+        # Limpiar directorio temporal
+        try:
+            shutil.rmtree(temp_extract_dir)
+        except Exception as e:
+            print(f"Error limpiando directorio temporal: {str(e)}")
+        
+        return final_images
+        
+    except Exception as e:
+        print(f"Error extrayendo ZIP: {str(e)}")
+        return []
+
 # Carpeta donde se guardarán las imágenes (backup)
 IMAGE_FOLDER = os.path.join(os.getcwd(), 'images')
 os.makedirs(IMAGE_FOLDER, exist_ok=True)
@@ -738,60 +848,62 @@ def import_dataset_zip():
         dataset_folder = os.path.join(IMAGE_FOLDER, dataset_name)
         os.makedirs(dataset_folder, exist_ok=True)
         
-        # Descomprimir ZIP
-        import zipfile
+        # Descomprimir y procesar ZIP con las nuevas funciones inteligentes
         import tempfile
         
         with tempfile.TemporaryDirectory() as temp_dir:
             zip_path = os.path.join(temp_dir, file.filename)
             file.save(zip_path)
             
-            with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-                zip_ref.extractall(dataset_folder)
+            # Usar la nueva función para extraer y encontrar imágenes
+            found_images = extract_and_find_images(zip_path, dataset_folder)
         
         # Procesar imágenes encontradas
         image_count = 0
-        supported_formats = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp'}
+        processed_images = []
         
-        for root, dirs, files in os.walk(dataset_folder):
-            for filename in files:
-                if any(filename.lower().endswith(ext) for ext in supported_formats):
-                    file_path = os.path.join(root, filename)
-                    
-                    try:
-                        # Leer y procesar imagen
-                        with open(file_path, 'rb') as img_file:
-                            image_data = img_file.read()
-                        
-                        pil_image = Image.open(io.BytesIO(image_data))
-                        width, height = pil_image.size
-                        
-                        # Convertir a base64 para MongoDB
-                        image_base64 = base64.b64encode(image_data).decode('utf-8')
-                        
-                        # Calcular ruta relativa desde IMAGE_FOLDER
-                        relative_path = os.path.relpath(file_path, IMAGE_FOLDER)
-                        
-                        # Crear documento de imagen
-                        image_doc = {
-                            'filename': filename,
-                            'original_name': filename,
-                            'file_path': relative_path,  # Ruta relativa desde IMAGE_FOLDER
-                            'data': image_base64,
-                            'content_type': f'image/{filename.split(".")[-1].lower()}',
-                            'size': len(image_data),
-                            'width': width,
-                            'height': height,
-                            'upload_date': datetime.utcnow(),
-                            'dataset_id': dataset_id
-                        }
-                        
-                        db.images.insert_one(image_doc)
-                        image_count += 1
-                        
-                    except Exception as e:
-                        print(f"Error procesando imagen {filename}: {e}")
-                        continue
+        for image_info in found_images:
+            file_path = image_info['file_path']
+            filename = image_info['filename']
+            original_path = image_info['original_path']
+            
+            try:
+                # Leer y procesar imagen
+                with open(file_path, 'rb') as img_file:
+                    image_data = img_file.read()
+                
+                # Reabrir para obtener dimensiones (verify() cierra la imagen)
+                pil_image = Image.open(file_path)
+                width, height = pil_image.size
+                pil_image.close()
+                
+                # Convertir a base64 para MongoDB
+                image_base64 = base64.b64encode(image_data).decode('utf-8')
+                
+                # Calcular ruta relativa desde IMAGE_FOLDER
+                relative_path = os.path.relpath(file_path, IMAGE_FOLDER)
+                
+                # Crear documento de imagen con información adicional
+                image_doc = {
+                    'filename': filename,
+                    'original_name': filename,
+                    'file_path': relative_path,
+                    'original_zip_path': original_path,  # Ruta original dentro del ZIP
+                    'data': image_base64,
+                    'content_type': f'image/{filename.split(".")[-1].lower()}',
+                    'size': len(image_data),
+                    'width': width,
+                    'height': height,
+                    'upload_date': datetime.utcnow(),
+                    'dataset_id': dataset_id
+                }
+                
+                db.images.insert_one(image_doc)
+                image_count += 1
+                
+            except Exception as e:
+                print(f"Error procesando imagen {filename}: {e}")
+                continue
         
         # Actualizar contador de imágenes
         db.datasets.update_one(
@@ -838,12 +950,12 @@ def import_images_to_dataset():
         dataset_folder = os.path.join(IMAGE_FOLDER, dataset_name)
         os.makedirs(dataset_folder, exist_ok=True)
         
-        # Guardar y extraer ZIP
+        # Guardar ZIP temporalmente
         zip_path = os.path.join(dataset_folder, file.filename)
         file.save(zip_path)
         
-        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-            zip_ref.extractall(dataset_folder)
+        # Extraer y buscar imágenes usando la nueva función
+        found_images = extract_and_find_images(zip_path, dataset_folder)
         
         # Eliminar el archivo ZIP después de extraer
         os.remove(zip_path)
@@ -851,49 +963,51 @@ def import_images_to_dataset():
         # Procesar imágenes encontradas
         image_count = 0
         processed_images = []
-        supported_formats = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.webp'}
         
-        for root, dirs, files in os.walk(dataset_folder):
-            for filename in files:
-                if any(filename.lower().endswith(ext) for ext in supported_formats):
-                    file_path = os.path.join(root, filename)
-                    
-                    try:
-                        # Leer y procesar imagen
-                        with open(file_path, 'rb') as img_file:
-                            image_data = img_file.read()
-                        
-                        pil_image = Image.open(io.BytesIO(image_data))
-                        width, height = pil_image.size
-                        
-                        # Convertir a base64 para MongoDB
-                        image_base64 = base64.b64encode(image_data).decode('utf-8')
-                        
-                        # Calcular ruta relativa desde IMAGE_FOLDER
-                        relative_path = os.path.relpath(file_path, IMAGE_FOLDER)
-                        
-                        # Crear documento de imagen
-                        image_doc = {
-                            'filename': filename,
-                            'original_name': filename,
-                            'file_path': relative_path,
-                            'data': image_base64,
-                            'content_type': f'image/{filename.split(".")[-1].lower()}',
-                            'size': len(image_data),
-                            'width': width,
-                            'height': height,
-                            'upload_date': datetime.utcnow(),
-                            'dataset_id': dataset_id
-                        }
-                        
-                        result = db.images.insert_one(image_doc)
-                        image_doc['_id'] = str(result.inserted_id)
-                        processed_images.append(serialize_doc(image_doc))
-                        image_count += 1
-                        
-                    except Exception as e:
-                        print(f"Error procesando imagen {filename}: {e}")
-                        continue
+        for image_info in found_images:
+            file_path = image_info['file_path']
+            filename = image_info['filename']
+            original_path = image_info['original_path']
+            
+            try:
+                # Leer y procesar imagen
+                with open(file_path, 'rb') as img_file:
+                    image_data = img_file.read()
+                
+                # Reabrir para obtener dimensiones (verify() cierra la imagen)
+                pil_image = Image.open(file_path)
+                width, height = pil_image.size
+                pil_image.close()
+                
+                # Convertir a base64 para MongoDB
+                image_base64 = base64.b64encode(image_data).decode('utf-8')
+                
+                # Calcular ruta relativa desde IMAGE_FOLDER
+                relative_path = os.path.relpath(file_path, IMAGE_FOLDER)
+                
+                # Crear documento de imagen con información adicional
+                image_doc = {
+                    'filename': filename,
+                    'original_name': filename,
+                    'file_path': relative_path,
+                    'original_zip_path': original_path,  # Ruta original dentro del ZIP
+                    'data': image_base64,
+                    'content_type': f'image/{filename.split(".")[-1].lower()}',
+                    'size': len(image_data),
+                    'width': width,
+                    'height': height,
+                    'upload_date': datetime.utcnow(),
+                    'dataset_id': dataset_id
+                }
+                
+                result = db.images.insert_one(image_doc)
+                image_doc['_id'] = str(result.inserted_id)
+                processed_images.append(serialize_doc(image_doc))
+                image_count += 1
+                
+            except Exception as e:
+                print(f"Error procesando imagen {filename}: {e}")
+                continue
         
         # Actualizar contador de imágenes del dataset
         current_count = db.images.count_documents({'dataset_id': dataset_id})
