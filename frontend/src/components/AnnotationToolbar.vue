@@ -33,16 +33,6 @@
         <span>Polígono</span>
       </button>
 
-      <!-- Brush Tool -->
-      <button
-        :class="['tool-btn', { active: activeTool === 'brush' }]"
-        @click="setActiveTool('brush')"
-        title="Pincel de mano alzada"
-      >
-        <i class="fas fa-paint-brush"></i>
-        <span>Pincel</span>
-      </button>
-
       <!-- Eraser Tool -->
       <button
         :class="['tool-btn', { active: activeTool === 'eraser' }]"
@@ -51,16 +41,6 @@
       >
         <i class="fas fa-eraser"></i>
         <span>Borrador</span>
-      </button>
-
-      <!-- Keypoints Tool -->
-      <button
-        :class="['tool-btn', { active: activeTool === 'keypoints' }]"
-        @click="setActiveTool('keypoints')"
-        title="Puntos Clave"
-      >
-        <i class="fas fa-map-marker-alt"></i>
-        <span>Puntos</span>
       </button>
     </div>
 
@@ -73,14 +53,8 @@
         <div v-if="activeTool === 'polygon'" class="instruction">
           <small>💡 Haz clic para agregar puntos. Doble clic o Enter para completar. Escape para cancelar.</small>
         </div>
-        <div v-if="activeTool === 'brush'" class="instruction">
-          <small>💡 Mantén presionado y arrastra para dibujar.</small>
-        </div>
         <div v-if="activeTool === 'eraser'" class="instruction">
           <small>💡 Mantén presionado y arrastra para borrar anotaciones.</small>
-        </div>
-        <div v-if="activeTool === 'keypoints'" class="instruction">
-          <small>💡 Haz clic para colocar puntos clave.</small>
         </div>
         <div v-if="activeTool === 'bbox'" class="instruction">
           <small>💡 Arrastra para crear un rectángulo delimitador.</small>
@@ -178,29 +152,6 @@
         </label>
       </div>
 
-      <!-- Brush Settings -->
-      <div v-if="activeTool === 'brush'" class="settings-group">
-        <div class="setting-item">
-          <label>Grosor del trazo:</label>
-          <input 
-            type="range" 
-            min="2" 
-            max="50" 
-            v-model="toolSettings.brush.radius"
-            class="range-input"
-          />
-          <span>{{ toolSettings.brush.radius }}px</span>
-        </div>
-        <div class="setting-item">
-          <label>Color:</label>
-          <input 
-            type="color" 
-            v-model="toolSettings.brush.color"
-            class="color-input"
-          />
-        </div>
-      </div>
-
       <!-- Eraser Settings -->
       <div v-if="activeTool === 'eraser'" class="settings-group">
         <div class="setting-item">
@@ -213,29 +164,6 @@
             class="range-input"
           />
           <span>{{ toolSettings.eraser.radius }}px</span>
-        </div>
-      </div>
-
-      <!-- Keypoints Settings -->
-      <div v-if="activeTool === 'keypoints'" class="settings-group">
-        <div class="setting-item">
-          <label>Tamaño del punto:</label>
-          <input 
-            type="range" 
-            min="2" 
-            max="20" 
-            v-model="toolSettings.keypoints.size"
-            class="range-input"
-          />
-          <span>{{ toolSettings.keypoints.size }}px</span>
-        </div>
-        <div class="setting-item">
-          <label>Color:</label>
-          <input 
-            type="color" 
-            v-model="toolSettings.keypoints.color"
-            class="color-input"
-          />
         </div>
       </div>
     </div>
@@ -330,9 +258,7 @@ const getToolDisplayName = (tool) => {
     edit: 'Editar',
     bbox: 'Rectángulo',
     polygon: 'Polígono', 
-    brush: 'Pincel',
-    eraser: 'Borrador',
-    keypoints: 'Puntos Clave'
+    eraser: 'Borrador'
   }
   return names[tool] || tool
 }

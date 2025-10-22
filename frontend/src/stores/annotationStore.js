@@ -37,16 +37,8 @@ export const useAnnotationStore = defineStore('annotation', {
         completeDistance: 15,
         guidance: true
       },
-      brush: {
-        radius: 15,
-        color: '#ff0000'
-      },
       eraser: {
         radius: 20
-      },
-      keypoints: {
-        size: 6,
-        color: '#ff0000'
       }
     }
   }),
@@ -569,15 +561,6 @@ export const useAnnotationStore = defineStore('annotation', {
           point[1] + deltaY
         ])
         this.updateAnnotation(annotationId, { points: newPoints })
-      } else if (annotation.type === 'keypoint') {
-        // Mover punto clave
-        const newBbox = [
-          annotation.bbox[0] + deltaX,
-          annotation.bbox[1] + deltaY,
-          annotation.bbox[2],
-          annotation.bbox[3]
-        ]
-        this.updateAnnotation(annotationId, { bbox: newBbox })
       }
     },
     
@@ -591,16 +574,6 @@ export const useAnnotationStore = defineStore('annotation', {
           annotation.bbox[1],
           newWidth,
           newHeight
-        ]
-        this.updateAnnotation(annotationId, { bbox: newBbox })
-      } else if (annotation.type === 'keypoint') {
-        // Para puntos clave, redimensionar el radio
-        const newRadius = Math.max(newWidth, newHeight) / 2
-        const newBbox = [
-          annotation.bbox[0],
-          annotation.bbox[1],
-          newRadius * 2,
-          newRadius * 2
         ]
         this.updateAnnotation(annotationId, { bbox: newBbox })
       }

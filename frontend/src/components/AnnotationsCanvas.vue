@@ -103,40 +103,6 @@
               @dragend="handlePolygonPointDrag(ann, pointIndex, $event)"
             />
           </template>
-          
-          <!-- Trazos de pincel -->
-          <v-line
-            v-if="ann.type === 'brush' && ann.points"
-            :config="{
-              points: ann.points,
-              stroke: getCategoryColor(ann.category || ann.category_id),
-              strokeWidth: props.toolSettings?.brush?.radius / 2 || 8,
-              lineCap: 'round',
-              lineJoin: 'round',
-              listening: true,
-              draggable: props.activeTool === 'edit'
-            }"
-            @click="handleAnnotationClick(ann)"
-            @dragend="handleAnnotationDrag(ann, $event)"
-          />
-          
-          <!-- Puntos clave -->
-          <v-circle
-            v-if="ann.type === 'keypoint'"
-            :config="{
-              x: ann.center?.x || (ann.bbox[0] + ann.bbox[2]/2),
-              y: ann.center?.y || (ann.bbox[1] + ann.bbox[3]/2),
-              radius: ann.bbox[2]/2,
-              stroke: getCategoryColor(ann.category || ann.category_id),
-              fill: getCategoryColor(ann.category || ann.category_id),
-              strokeWidth: isSelectedAnnotation(ann) ? 3 : 2,
-              listening: true,
-              draggable: props.activeTool === 'edit',
-              opacity: 0.8
-            }"
-            @click="handleAnnotationClick(ann)"
-            @dragend="handleAnnotationDrag(ann, $event)"
-          />
         </template>
 
         <!-- Forma en curso (preview) -->
@@ -211,9 +177,7 @@ const canvasCursor = computed(() => {
     case 'edit': return 'default'
     case 'bbox': return 'crosshair'
     case 'polygon': return 'crosshair'
-    case 'brush': return 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\'%3E%3Ccircle cx=\'12\' cy=\'12\' r=\'3\' fill=\'%23000\'/%3E%3C/svg%3E") 12 12, auto'
     case 'eraser': return 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\'%3E%3Ccircle cx=\'12\' cy=\'12\' r=\'8\' fill=\'none\' stroke=\'%23f00\' stroke-width=\'2\'/%3E%3C/svg%3E") 12 12, auto'
-    case 'keypoints': return 'crosshair'
     default: return 'default'
   }
 })
@@ -259,7 +223,6 @@ const imageData = ref(null)
 const drawing = ref(false)
 const startPt = ref({ x: 0, y: 0 })
 const currentPath = ref([]) // Para polígonos
-const brushPath = ref([]) // Para pincel
 const isPolygonComplete = ref(false)
 
 // Estados específicos para herramientas
@@ -432,18 +395,9 @@ function startDraw(e) {
       handlePolygonClick(pos)
       break
       
-    case 'brush':
-      drawing.value = true
-      brushPath.value = [pos.x, pos.y]
-      break
-      
     case 'eraser':
       drawing.value = true
       eraseAtPosition(pos)
-      break
-      
-    case 'keypoints':
-      createKeypoint(pos)
       break
   }
 }
@@ -459,11 +413,6 @@ function draw(e) {
       drawingRect.height = pos.y - startPt.value.y
       break
       
-    case 'brush':
-      // Agregar punto al path del pincel
-      brushPath.value.push(pos.x, pos.y)
-      break
-      
     case 'eraser':
       startPt.value = pos
       eraseAtPosition(pos)
@@ -477,10 +426,6 @@ function endDraw() {
   switch(props.activeTool) {
     case 'bbox':
       completeBBox()
-      break
-      
-    case 'brush':
-      completeBrush()
       break
       
     case 'eraser':
@@ -566,31 +511,6 @@ async function completePolygon() {
   currentPath.value = []
 }
 
-async function completeBrush() {
-  if (brushPath.value.length >= 4) {
-    // Calcular bounding box del trazo
-    const xs = brushPath.value.filter((_, i) => i % 2 === 0)
-    const ys = brushPath.value.filter((_, i) => i % 2 === 1)
-    const minX = Math.min(...xs)
-    const minY = Math.min(...ys)
-    const maxX = Math.max(...xs)
-    const maxY = Math.max(...ys)
-    
-    try {
-      await store.addAnnotation(props.imageId, {
-        bbox: [minX, minY, maxX - minX, maxY - minY],
-        type: 'brush',
-        points: brushPath.value
-      })
-      emit('annotation-saved')
-    } catch (error) {
-      console.error('Error al crear anotación brush:', error)
-    }
-  }
-  
-  brushPath.value = []
-}
-
 async function eraseAtPosition(pos) {
   // Encontrar anotaciones que intersectan con el área del borrador
   const annotations = store.getAnnotationsByImageId(props.imageId)
@@ -611,20 +531,6 @@ async function eraseAtPosition(pos) {
         console.error('Error al eliminar anotación:', error)
       }
     }
-  }
-}
-
-async function createKeypoint(pos) {
-  const size = props.toolSettings.size || 6
-  try {
-    await store.addAnnotation(props.imageId, {
-      bbox: [pos.x - size/2, pos.y - size/2, size, size],
-      type: 'keypoint',
-      center: { x: pos.x, y: pos.y }
-    })
-    emit('annotation-saved')
-  } catch (error) {
-    console.error('Error al crear anotación keypoint:', error)
   }
 }
 
