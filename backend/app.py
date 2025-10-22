@@ -514,6 +514,21 @@ def get_categories():
         
         categories = list(db.categories.find({'project_id': project_id}))
         
+        # Contar anotaciones por categoría y estandarizar formato
+        for category in categories:
+            category_id = str(category['_id'])
+            # Buscar anotaciones que coincidan con category_id O category
+            annotation_count = db.annotations.count_documents({
+                '$or': [
+                    {'category_id': category_id},
+                    {'category': category_id}
+                ]
+            })
+            category['numberAnnotations'] = annotation_count
+            category['creator'] = category.get('creator', 'system')
+            # Estandarizar ID para consistencia con el frontend
+            category['id'] = category_id
+        
         return jsonify({
             'categories': [serialize_doc(cat) for cat in categories]
         })
@@ -619,7 +634,12 @@ def delete_category(category_id):
         db = get_db()
         
         # Verificar si existen anotaciones con esta categoría
-        annotation_count = db.annotations.count_documents({'category_id': category_id})
+        annotation_count = db.annotations.count_documents({
+            '$or': [
+                {'category_id': category_id},
+                {'category': category_id}
+            ]
+        })
         
         if annotation_count > 0:
             return jsonify({
@@ -650,12 +670,20 @@ def get_categories_data():
         # Obtener todas las categorías
         categories = list(db.categories.find({'project_id': project_id}))
         
-        # Contar anotaciones por categoría
+        # Contar anotaciones por categoría y estandarizar formato
         for category in categories:
             category_id = str(category['_id'])
-            annotation_count = db.annotations.count_documents({'category_id': category_id})
+            # Buscar anotaciones que coincidan con category_id O category
+            annotation_count = db.annotations.count_documents({
+                '$or': [
+                    {'category_id': category_id},
+                    {'category': category_id}
+                ]
+            })
             category['numberAnnotations'] = annotation_count
             category['creator'] = category.get('creator', 'system')
+            # Estandarizar ID para consistencia con el frontend
+            category['id'] = category_id
         
         return jsonify({
             'categories': [serialize_doc(cat) for cat in categories]

@@ -84,13 +84,6 @@
               <span class="no-annotations">Sin anotaciones</span>
             </div>
           </div>
-
-          <div class="card-footer">
-            <span class="creator">
-              <i class="fas fa-user"></i>
-              Creado por {{ category.creator || 'Sistema' }}
-            </span>
-          </div>
         </div>
       </div>
     </div>
@@ -235,11 +228,15 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import { useAnnotationStore } from '../stores/annotationStore'
+
+// Store
+const store = useAnnotationStore()
 
 // Estado reactivo
-const categories = ref([])
-const loading = ref(false)
+const categories = computed(() => store.categories)
+const loading = computed(() => store.loading)
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
 const creating = ref(false)
@@ -259,22 +256,11 @@ const editingCategory = ref({
 
 // Métodos
 async function loadCategories() {
-  loading.value = true
   try {
-    const response = await fetch('/api/categories/data')
-    const data = await response.json()
-    
-    if (response.ok) {
-      categories.value = data.categories || []
-    } else {
-      console.error('Error al cargar categorías:', data.error)
-      alert('Error al cargar categorías: ' + data.error)
-    }
+    await store.loadCategories()
   } catch (error) {
     console.error('Error al cargar categorías:', error)
-    alert('Error al cargar categorías')
-  } finally {
-    loading.value = false
+    alert('Error al cargar categorías: ' + error.message)
   }
 }
 
@@ -285,26 +271,12 @@ async function createCategory() {
   errors.value = {}
   
   try {
-    const response = await fetch('/api/categories', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(newCategory.value)
-    })
-    
-    const data = await response.json()
-    
-    if (response.ok) {
-      alert('Categoría creada correctamente')
-      closeCreateModal()
-      await loadCategories()
-    } else {
-      alert('Error al crear categoría: ' + data.error)
-    }
+    await store.addCategory(newCategory.value)
+    alert('Categoría creada correctamente')
+    closeCreateModal()
   } catch (error) {
     console.error('Error al crear categoría:', error)
-    alert('Error al crear categoría')
+    alert('Error al crear categoría: ' + error.message)
   } finally {
     creating.value = false
   }
@@ -317,29 +289,12 @@ async function updateCategory() {
   errors.value = {}
   
   try {
-    const response = await fetch(`/api/categories/${editingCategory.value.id}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        name: editingCategory.value.name,
-        color: editingCategory.value.color
-      })
-    })
-    
-    const data = await response.json()
-    
-    if (response.ok) {
-      alert('Categoría actualizada correctamente')
-      closeEditModal()
-      await loadCategories()
-    } else {
-      alert('Error al actualizar categoría: ' + data.error)
-    }
+    await store.updateCategory(editingCategory.value)
+    alert('Categoría actualizada correctamente')
+    closeEditModal()
   } catch (error) {
     console.error('Error al actualizar categoría:', error)
-    alert('Error al actualizar categoría')
+    alert('Error al actualizar categoría: ' + error.message)
   } finally {
     updating.value = false
   }
@@ -356,21 +311,11 @@ async function deleteCategory(category) {
   }
   
   try {
-    const response = await fetch(`/api/categories/${category.id}`, {
-      method: 'DELETE'
-    })
-    
-    const data = await response.json()
-    
-    if (response.ok) {
-      alert('Categoría eliminada correctamente')
-      await loadCategories()
-    } else {
-      alert('Error al eliminar categoría: ' + data.error)
-    }
+    await store.deleteCategory(category.id)
+    alert('Categoría eliminada correctamente')
   } catch (error) {
     console.error('Error al eliminar categoría:', error)
-    alert('Error al eliminar categoría')
+    alert('Error al eliminar categoría: ' + error.message)
   }
 }
 
@@ -400,12 +345,13 @@ function editCategory(category) {
 }
 
 function selectCategory(category) {
-  // Aquí puedes implementar la lógica para seleccionar una categoría
+  // Seleccionar categoría en el store para sincronización
+  store.setSelectedCategory(category.id)
   console.log('Categoría seleccionada:', category)
 }
 
-function refreshCategories() {
-  loadCategories()
+async function refreshCategories() {
+  await loadCategories()
 }
 
 function closeCreateModal() {
@@ -429,7 +375,10 @@ function closeEditModal() {
 
 // Lifecycle
 onMounted(() => {
-  loadCategories()
+  // Cargar categorías si no están ya cargadas
+  if (categories.value.length === 0) {
+    loadCategories()
+  }
 })
 </script>
 
@@ -610,19 +559,7 @@ onMounted(() => {
   font-style: italic;
 }
 
-.card-footer {
-  padding: 1rem 1.5rem;
-  background: #f8f9fa;
-  border-top: 1px solid #f1f3f4;
-}
 
-.creator {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  font-size: 0.85rem;
-  color: #6c757d;
-}
 
 /* Buttons */
 .btn {

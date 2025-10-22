@@ -56,10 +56,10 @@
       <div 
         v-else
         v-for="category in categories" 
-        :key="category.id || category._id" 
+        :key="category.id" 
         class="category-item"
-        :class="{ 'active': selectedCategory === (category.id || category._id) }"
-        @click="selectCategory(category.id || category._id)"
+        :class="{ 'active': selectedCategory === category.id }"
+        @click="selectCategory(category.id)"
       >
         <div class="category-info">
           <div 
@@ -69,7 +69,7 @@
           <div class="category-details">
             <span class="category-name">{{ category.name }}</span>
           </div>
-          <span class="category-count">({{ getCategoryAnnotationCount(category.id || category._id) }})</span>
+          <span class="category-count">({{ getCategoryAnnotationCount(category.id) }})</span>
         </div>
         <div class="category-actions">
           <button 
@@ -80,10 +80,10 @@
             ✏️
           </button>
           <button 
-            @click.stop="deleteCategory(category.id || category._id)" 
+            @click.stop="deleteCategory(category.id)" 
             class="btn-delete"
             title="Eliminar categoría"
-            v-if="(category.id || category._id) !== 1"
+            v-if="category.numberAnnotations === 0"
           >
             🗑️
           </button>
@@ -154,7 +154,7 @@ const annotations = computed(() => store.annotations)
 const loading = computed(() => store.loading)
 
 const selectedCategoryInfo = computed(() => {
-  return categories.value.find(cat => (cat.id || cat._id) === selectedCategory.value)
+  return categories.value.find(cat => cat.id === selectedCategory.value)
 })
 
 async function addCategory() {
@@ -186,8 +186,7 @@ function selectCategory(categoryId) {
 
 function editCategory(category) {
   editingCategory.value = { 
-    ...category,
-    id: category.id || category._id
+    ...category
   }
 }
 
@@ -207,12 +206,11 @@ function cancelEdit() {
 }
 
 async function deleteCategory(categoryId) {
-  const category = categories.value.find(cat => (cat.id || cat._id) === categoryId)
+  const category = categories.value.find(cat => cat.id === categoryId)
   if (!category) return
   
-  const annotationCount = getCategoryAnnotationCount(categoryId)
-  if (annotationCount > 0) {
-    alert(`No se puede eliminar la categoría "${category.name}" porque tiene ${annotationCount} anotaciones asociadas.`)
+  if (category.numberAnnotations > 0) {
+    alert(`No se puede eliminar la categoría "${category.name}" porque tiene ${category.numberAnnotations} anotaciones asociadas.`)
     return
   }
   

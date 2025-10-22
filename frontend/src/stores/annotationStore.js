@@ -53,7 +53,7 @@ export const useAnnotationStore = defineStore('annotation', {
   
   getters: {
     getCategoryById: (state) => (id) => {
-      return state.categories.find(cat => cat._id === id || cat.id === id)
+      return state.categories.find(cat => cat.id === id)
     },
     
     getAnnotationsByCategory: (state) => (categoryId) => {
@@ -193,6 +193,7 @@ export const useAnnotationStore = defineStore('annotation', {
         const payload = {
           image_id: imageId,
           category: this.selectedCategory,
+          category_id: this.selectedCategory,
           ...annotationData
         }
         
@@ -343,15 +344,19 @@ export const useAnnotationStore = defineStore('annotation', {
     
     // ==================== APIS DE CATEGORÍAS ====================
     
-    async loadCategories() {
+    async loadCategories(datasetId = null) {
       this.loading = true
       this.clearError()
       
       try {
-        const response = await fetch(`${API_BASE_URL}/categories/data`)
+        const targetDatasetId = datasetId || this.currentDataset?._id
+        const url = targetDatasetId ? 
+          `${API_BASE_URL}/categories?dataset_id=${targetDatasetId}` : 
+          `${API_BASE_URL}/categories`
+        const response = await fetch(url)
         
         if (!response.ok) {
-          throw new Error(`Error HTTP: ${response.status}`)
+          throw new Error(`Error ${response.status}: ${response.statusText}`)
         }
         
         const data = await response.json()
@@ -359,8 +364,10 @@ export const useAnnotationStore = defineStore('annotation', {
         
         // Establecer categoría por defecto si no hay una seleccionada
         if (!this.selectedCategory && this.categories.length > 0) {
-          this.selectedCategory = this.categories[0].id || this.categories[0]._id
+          this.selectedCategory = this.categories[0].id
         }
+        
+        return data.categories
         
       } catch (error) {
         this.setError(`Error al cargar categorías: ${error.message}`)
@@ -370,17 +377,22 @@ export const useAnnotationStore = defineStore('annotation', {
       }
     },
     
-    async addCategory(categoryData) {
+    async addCategory(categoryData, datasetId = null) {
       this.loading = true
       this.clearError()
       
       try {
+        const payload = {
+          dataset_id: datasetId || this.currentDataset?._id,
+          ...categoryData
+        }
+        
         const response = await fetch(`${API_BASE_URL}/categories`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(categoryData)
+          body: JSON.stringify(payload)
         })
         
         if (!response.ok) {
@@ -394,6 +406,7 @@ export const useAnnotationStore = defineStore('annotation', {
         await this.loadCategories()
         
         return data.category
+        
       } catch (error) {
         this.setError(`Error al crear categoría: ${error.message}`)
         throw error
@@ -455,11 +468,9 @@ export const useAnnotationStore = defineStore('annotation', {
         
         // Si era la categoría seleccionada, cambiar a otra
         if (this.selectedCategory === categoryId) {
-          const remainingCategories = this.categories.filter(cat => 
-            (cat.id || cat._id) !== categoryId
-          )
+          const remainingCategories = this.categories.filter(cat => cat.id !== categoryId)
           this.selectedCategory = remainingCategories.length > 0 ? 
-            (remainingCategories[0].id || remainingCategories[0]._id) : null
+            remainingCategories[0].id : null
         }
         
         // Recargar categorías para mantener consistencia
@@ -467,80 +478,6 @@ export const useAnnotationStore = defineStore('annotation', {
         
       } catch (error) {
         this.setError(`Error al eliminar categoría: ${error.message}`)
-        throw error
-      } finally {
-        this.loading = false
-      }
-    },
-    
-    setSelectedCategory(categoryId) {
-      this.selectedCategory = categoryId
-    },
-    
-    async loadCategories(datasetId = null) {
-      this.loading = true
-      this.clearError()
-      
-      try {
-        const targetDatasetId = datasetId || this.currentDataset?._id
-        const url = targetDatasetId ? 
-          `${API_BASE_URL}/categories?dataset_id=${targetDatasetId}` : 
-          `${API_BASE_URL}/categories`
-        const response = await fetch(url)
-        
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}: ${response.statusText}`)
-        }
-        
-        const data = await response.json()
-        this.categories = data.categories
-        
-        // Seleccionar primera categoría si no hay ninguna seleccionada
-        if (this.categories.length > 0 && !this.selectedCategory) {
-          this.selectedCategory = this.categories[0]._id
-        }
-        
-        return data.categories
-        
-      } catch (error) {
-        this.setError(`Error al cargar categorías: ${error.message}`)
-        throw error
-      } finally {
-        this.loading = false
-      }
-    },
-    
-    async addCategory(categoryData, datasetId = null) {
-      this.loading = true
-      this.clearError()
-      
-      try {
-        const payload = {
-          dataset_id: datasetId || this.currentDataset?._id,
-          ...categoryData
-        }
-        
-        const response = await fetch(`${API_BASE_URL}/categories`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        })
-        
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}: ${response.statusText}`)
-        }
-        
-        const data = await response.json()
-        
-        // Añadir categoría al estado local
-        this.categories.push(data.category)
-        
-        return data.category
-        
-      } catch (error) {
-        this.setError(`Error al crear categoría: ${error.message}`)
         throw error
       } finally {
         this.loading = false
