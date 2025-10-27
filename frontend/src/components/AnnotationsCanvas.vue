@@ -13,8 +13,10 @@
       @mousemove="draw"
       @mouseup="endDraw"
       @dblclick="handleDoubleClick"
+      @wheel="handleWheel"
       class="annotation-stage"
       :style="{ cursor: canvasCursor }"
+      ref="stageRef"
     >
       <v-layer>
         <!-- Imagen de fondo (no bloquea eventos) -->
@@ -246,6 +248,9 @@
     <div v-if="image" class="debug-canvas-info">
       <p>Canvas: {{ stageWidth }}x{{ stageHeight }}</p>
       <p>Imagen: {{ imageConfig.width }}x{{ imageConfig.height }} en ({{ imageConfig.x }}, {{ imageConfig.y }})</p>
+      <p>Zoom: {{ Math.round(scale * 100) }}% | Pan: ({{ Math.round(stagePos.x) }}, {{ Math.round(stagePos.y) }})</p>
+      <p v-if="props.activeTool === 'pan'"><small>�️ Herramienta Pan activa - Arrastra para mover la vista | Rueda para zoom | 'R' para resetear</small></p>
+      <p v-else><small>�💡 Usa la rueda del ratón para zoom | Tecla 'R' para resetear | Selecciona "Mover" para pan</small></p>
     </div>
   </div>
 </template>
@@ -256,18 +261,35 @@ import { useAnnotationStore } from '../stores/annotationStore'
 
 const store = useAnnotationStore()
 
+// Referencias para el stage
+const stageRef = ref(null)
+
+// Variables de zoom y pan
+const scale = ref(1)
+const stagePos = reactive({ x: 0, y: 0 })
+const isDragging = ref(false)
+const lastPointerPos = ref({ x: 0, y: 0 })
+
 // Canvas responsive que se adapta a la imagen
 const stageWidth = ref(800)
 const stageHeight = ref(600)
 const stageConfig = computed(() => ({ 
   width: stageWidth.value, 
-  height: stageHeight.value
+  height: stageHeight.value,
+  scaleX: scale.value,
+  scaleY: scale.value,
+  x: stagePos.x,
+  y: stagePos.y,
+  draggable: false // Controlaremos el drag manualmente
 }))
 
 // Cursor según herramienta activa
 const canvasCursor = computed(() => {
+  if (isDragging.value) return 'grabbing'
+  
   switch(props.activeTool) {
     case 'edit': return 'default'
+    case 'pan': return isDragging.value ? 'grabbing' : 'grab'
     case 'bbox': return 'crosshair'
     case 'polygon': return 'crosshair'
     case 'eraser': return 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'24\' height=\'24\' viewBox=\'0 0 24 24\'%3E%3Ccircle cx=\'12\' cy=\'12\' r=\'8\' fill=\'none\' stroke=\'%23f00\' stroke-width=\'2\'/%3E%3C/svg%3E") 12 12, auto'
@@ -379,7 +401,54 @@ function handleKeyDown(e) {
       e.preventDefault()
       deleteSelectedAnnotation()
     }
+  } else if (e.key === 'r' || e.key === 'R') {
+    // Reset zoom con la tecla R
+    resetZoom()
   }
+}
+
+// ==================== FUNCIONES DE ZOOM Y PAN ====================
+
+function handleWheel(e) {
+  e.evt.preventDefault()
+  
+  const stage = stageRef.value.getNode()
+  const pointer = stage.getPointerPosition()
+  
+  // Factor de zoom
+  const scaleBy = 1.05
+  const oldScale = scale.value
+  const newScale = e.evt.deltaY > 0 ? oldScale / scaleBy : oldScale * scaleBy
+  
+  // Limitar el zoom entre 0.1x y 5x
+  scale.value = Math.max(0.1, Math.min(5, newScale))
+  
+  // Calcular nueva posición para mantener el punto del mouse fijo
+  const mousePointTo = {
+    x: (pointer.x - stagePos.x) / oldScale,
+    y: (pointer.y - stagePos.y) / oldScale
+  }
+  
+  const newPos = {
+    x: pointer.x - mousePointTo.x * scale.value,
+    y: pointer.y - mousePointTo.y * scale.value
+  }
+  
+  stagePos.x = newPos.x
+  stagePos.y = newPos.y
+}
+
+function resetZoom() {
+  scale.value = 1
+  stagePos.x = 0
+  stagePos.y = 0
+}
+
+function getRelativePointerPosition(stage) {
+  const transform = stage.getAbsoluteTransform().copy()
+  transform.invert()
+  const pos = stage.getPointerPosition()
+  return transform.point(pos)
 }
 
 // Función para eliminar anotación seleccionada con protección contra duplicados
@@ -412,6 +481,9 @@ async function deleteSelectedAnnotation() {
 function handleDoubleClick(e) {
   if (props.activeTool === 'polygon' && currentPath.value.length >= 3) {
     completePolygon()
+  } else if (e.target === e.target.getStage()) {
+    // Doble clic en el fondo para resetear zoom
+    resetZoom()
   }
 }
 
@@ -498,7 +570,16 @@ function createImageData(img, width, height) {
 function startDraw(e) {
   console.log('Mouse down en canvas, herramienta activa:', props.activeTool)
   
-  const pos = e.target.getStage().getPointerPosition()
+  // Para la herramienta pan, siempre permitir arrastre
+  if (props.activeTool === 'pan') {
+    isDragging.value = true
+    const pos = e.target.getStage().getPointerPosition()
+    lastPointerPos.value = { x: pos.x, y: pos.y }
+    return
+  }
+  
+  const stage = stageRef.value.getNode()
+  const pos = getRelativePointerPosition(stage)
   startPt.value = pos
   
   switch(props.activeTool) {
@@ -536,9 +617,24 @@ function startDraw(e) {
 }
 
 function draw(e) {
+  // Si estamos arrastrando para pan
+  if (isDragging.value) {
+    const stage = e.target.getStage()
+    const pos = stage.getPointerPosition()
+    const dx = pos.x - lastPointerPos.value.x
+    const dy = pos.y - lastPointerPos.value.y
+    
+    stagePos.x += dx
+    stagePos.y += dy
+    
+    lastPointerPos.value = { x: pos.x, y: pos.y }
+    return
+  }
+  
   if (!drawing.value) return
   
-  const pos = e.target.getStage().getPointerPosition()
+  const stage = stageRef.value.getNode()
+  const pos = getRelativePointerPosition(stage)
   
   switch(props.activeTool) {
     case 'bbox':
@@ -554,6 +650,12 @@ function draw(e) {
 }
 
 function endDraw() {
+  // Si estamos terminando un pan drag
+  if (isDragging.value) {
+    isDragging.value = false
+    return
+  }
+  
   if (!drawing.value) return
   
   switch(props.activeTool) {
@@ -908,6 +1010,10 @@ function handlePolygonPointDrag(annotation, pointIndex, event) {
 .annotation-stage {
   border-radius: 4px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  user-select: none; /* Prevenir selección de texto durante el arrastre */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
 }
 
 .debug-info, .debug-canvas-info {

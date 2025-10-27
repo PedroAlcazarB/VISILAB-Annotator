@@ -13,6 +13,16 @@
         <span>Editar</span>
       </button>
 
+      <!-- Pan Tool -->
+      <button
+        :class="['tool-btn', { active: activeTool === 'pan' }]"
+        @click="setActiveTool('pan')"
+        title="Mover Vista (Pan)"
+      >
+        <i class="fas fa-hand-paper"></i>
+        <span>Mover</span>
+      </button>
+
       <!-- BBox Tool -->
       <button
         :class="['tool-btn', { active: activeTool === 'bbox' }]"
@@ -50,6 +60,9 @@
       
       <!-- Instrucciones específicas -->
       <div class="tool-instructions">
+        <div v-if="activeTool === 'pan'" class="instruction">
+          <small>💡 Arrastra para moverte por la imagen. Usa la rueda del ratón para zoom. Tecla 'R' para resetear.</small>
+        </div>
         <div v-if="activeTool === 'polygon'" class="instruction">
           <small>💡 Haz clic para agregar puntos. Doble clic o Enter para completar. Escape para cancelar.</small>
         </div>
@@ -256,6 +269,7 @@ const updateToolSetting = (tool, key, value) => {
 const getToolDisplayName = (tool) => {
   const names = {
     edit: 'Editar',
+    pan: 'Mover Vista',
     bbox: 'Rectángulo',
     polygon: 'Polígono', 
     eraser: 'Borrador'
