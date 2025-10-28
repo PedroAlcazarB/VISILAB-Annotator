@@ -54,8 +54,7 @@
                 fill: '#ffffff',
                 stroke: getCategoryColor(ann.category || ann.category_id),
                 strokeWidth: 2,
-                draggable: true,
-                dragBoundFunc: (pos) => pos
+                draggable: true
               }"
               @dragmove="handleResizeDrag(ann, $event, 'nw')"
             />
@@ -67,8 +66,7 @@
                 fill: '#ffffff',
                 stroke: getCategoryColor(ann.category || ann.category_id),
                 strokeWidth: 2,
-                draggable: true,
-                dragBoundFunc: (pos) => pos
+                draggable: true
               }"
               @dragmove="handleResizeDrag(ann, $event, 'ne')"
             />
@@ -80,8 +78,7 @@
                 fill: '#ffffff',
                 stroke: getCategoryColor(ann.category || ann.category_id),
                 strokeWidth: 2,
-                draggable: true,
-                dragBoundFunc: (pos) => pos
+                draggable: true
               }"
               @dragmove="handleResizeDrag(ann, $event, 'sw')"
             />
@@ -93,12 +90,11 @@
                 fill: '#ffffff',
                 stroke: getCategoryColor(ann.category || ann.category_id),
                 strokeWidth: 2,
-                draggable: true,
-                dragBoundFunc: (pos) => pos
+                draggable: true
               }"
               @dragmove="handleResizeDrag(ann, $event, 'se')"
             />
-            <!-- Bordes -->
+            <!-- Bordes - CON RESTRICCIONES DE MOVIMIENTO -->
             <v-circle
               :config="{
                 x: ann.bbox[0] + ann.bbox[2] / 2,
@@ -108,7 +104,10 @@
                 stroke: getCategoryColor(ann.category || ann.category_id),
                 strokeWidth: 2,
                 draggable: true,
-                dragBoundFunc: (pos) => pos
+                dragBoundFunc: (pos) => ({
+                  x: ann.bbox[0] + ann.bbox[2] / 2, // X fijo
+                  y: pos.y // Solo Y puede cambiar
+                })
               }"
               @dragmove="handleResizeDrag(ann, $event, 'n')"
             />
@@ -121,7 +120,10 @@
                 stroke: getCategoryColor(ann.category || ann.category_id),
                 strokeWidth: 2,
                 draggable: true,
-                dragBoundFunc: (pos) => pos
+                dragBoundFunc: (pos) => ({
+                  x: ann.bbox[0] + ann.bbox[2] / 2, // X fijo
+                  y: pos.y // Solo Y puede cambiar
+                })
               }"
               @dragmove="handleResizeDrag(ann, $event, 's')"
             />
@@ -134,7 +136,10 @@
                 stroke: getCategoryColor(ann.category || ann.category_id),
                 strokeWidth: 2,
                 draggable: true,
-                dragBoundFunc: (pos) => pos
+                dragBoundFunc: (pos) => ({
+                  x: pos.x, // Solo X puede cambiar
+                  y: ann.bbox[1] + ann.bbox[3] / 2 // Y fijo
+                })
               }"
               @dragmove="handleResizeDrag(ann, $event, 'w')"
             />
@@ -147,7 +152,10 @@
                 stroke: getCategoryColor(ann.category || ann.category_id),
                 strokeWidth: 2,
                 draggable: true,
-                dragBoundFunc: (pos) => pos
+                dragBoundFunc: (pos) => ({
+                  x: pos.x, // Solo X puede cambiar
+                  y: ann.bbox[1] + ann.bbox[3] / 2 // Y fijo
+                })
               }"
               @dragmove="handleResizeDrag(ann, $event, 'e')"
             />
