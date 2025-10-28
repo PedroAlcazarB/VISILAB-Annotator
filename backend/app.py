@@ -371,13 +371,21 @@ def create_annotation():
         
         db = get_db()
         
+        # Calcular área si hay bbox
+        bbox = data.get('bbox')
+        area = 0
+        if bbox and len(bbox) >= 4:
+            # bbox format: [x, y, width, height]
+            area = bbox[2] * bbox[3]
+        
         # Crear documento de anotación
         annotation_doc = {
             'image_id': data['image_id'],
             'type': data.get('type', 'bbox'),
             'category': data.get('category', 'default'),
             'category_id': data.get('category_id'),
-            'bbox': data.get('bbox'),
+            'bbox': bbox,
+            'area': area,
             'points': data.get('points'),
             'stroke': data.get('stroke', '#00ff00'),
             'strokeWidth': data.get('strokeWidth', 2),
@@ -445,6 +453,14 @@ def update_annotation(annotation_id):
         for field in updateable_fields:
             if field in data:
                 update_data[field] = data[field]
+        
+        # Recalcular área si se actualiza el bbox
+        if 'bbox' in data:
+            bbox = data['bbox']
+            if bbox and len(bbox) >= 4:
+                update_data['area'] = bbox[2] * bbox[3]
+            else:
+                update_data['area'] = 0
         
         result = db.annotations.update_one(
             {'_id': ObjectId(annotation_id)},
@@ -1936,12 +1952,17 @@ def export_coco_format(dataset, images, annotations, categories, include_images)
         if not image_id or not category_id:
             continue
         
+        bbox = ann.get('bbox', [0, 0, 0, 0])
+        # Calcular área: width * height del bbox
+        # El formato bbox es [x, y, width, height]
+        area = bbox[2] * bbox[3] if len(bbox) >= 4 else 0
+        
         ann_data = {
             'id': idx,
             'image_id': image_id,
             'category_id': category_id,
-            'bbox': ann.get('bbox', [0, 0, 0, 0]),
-            'area': ann.get('area', 0),
+            'bbox': bbox,
+            'area': area,
             'iscrowd': 0
         }
         
