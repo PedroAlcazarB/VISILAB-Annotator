@@ -538,28 +538,53 @@ onMounted(() => {
 
 .card-actions {
   display: flex;
-  gap: 0.25rem;
+  gap: 0.375rem;
+  opacity: 1;
+  transition: opacity 0.2s;
 }
 
 .btn-icon {
-  background: none;
-  border: none;
-  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  padding: 0.4rem;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 0.9rem;
-  transition: background 0.2s;
-  color: #6c757d;
+  font-size: 0.8rem;
+  transition: all 0.2s;
+  min-width: 28px;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.btn-edit {
+  background: rgba(52, 152, 219, 0.15);
+  border-color: rgba(52, 152, 219, 0.4);
+  color: #2980b9;
 }
 
 .btn-edit:hover {
-  background: #fff3cd;
-  color: #856404;
+  background: rgba(52, 152, 219, 0.25);
+  border-color: rgba(52, 152, 219, 0.6);
+  color: #1e6091;
+  transform: translateY(-0.5px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.btn-delete {
+  background: rgba(231, 76, 60, 0.15);
+  border-color: rgba(231, 76, 60, 0.4);
+  color: #c0392b;
 }
 
 .btn-delete:hover:not(:disabled) {
-  background: #f8d7da;
-  color: #721c24;
+  background: rgba(231, 76, 60, 0.25);
+  border-color: rgba(231, 76, 60, 0.6);
+  color: #a93226;
+  transform: translateY(-0.5px);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .btn-delete:disabled {
