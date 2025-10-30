@@ -67,7 +67,6 @@
                 @click.stop="deleteCategory(category)" 
                 class="btn-icon btn-delete"
                 title="Eliminar categoría"
-                :disabled="category.numberAnnotations > 0"
               >
                 <i class="fas fa-trash"></i>
               </button>
@@ -75,9 +74,9 @@
           </div>
 
           <div class="card-body">
-            <div v-if="category.numberAnnotations > 0" class="annotation-count">
+            <div v-if="getCategoryAnnotationCount(category.id) > 0" class="annotation-count">
               <i class="fas fa-layer-group"></i>
-              <span>{{ category.numberAnnotations }} anotaciones</span>
+              <span>{{ getCategoryAnnotationCount(category.id) }} anotaciones</span>
             </div>
             <div v-else class="annotation-count">
               <i class="fas fa-layer-group"></i>
@@ -236,6 +235,7 @@ const store = useAnnotationStore()
 
 // Estado reactivo
 const categories = computed(() => store.categories)
+const annotations = computed(() => store.annotations)
 const loading = computed(() => store.loading)
 const showCreateModal = ref(false)
 const showEditModal = ref(false)
@@ -300,18 +300,43 @@ async function updateCategory() {
   }
 }
 
+// Función para obtener el conteo actualizado de anotaciones
+function getCategoryAnnotationCount(categoryId) {
+  return store.getCategoryAnnotationCount(categoryId)
+}
+
+// Función para determinar si mostrar el botón de eliminar
+function canShowDeleteButton(categoryId) {
+  return getCategoryAnnotationCount(categoryId) === 0
+}
+
 async function deleteCategory(category) {
-  if (category.numberAnnotations > 0) {
-    alert(`No se puede eliminar la categoría "${category.name}" porque tiene ${category.numberAnnotations} anotaciones asociadas.`)
-    return
+  // Obtener información contextual
+  const currentCount = getCategoryAnnotationCount(category.id)
+  const globalCount = await store.getCategoryGlobalAnnotationCount(category.id)
+  
+  let message = `¿Estás seguro de que quieres eliminar la categoría "${category.name}"?`
+  
+  if (store.currentDataset) {
+    // En contexto de dataset
+    if (currentCount > 0) {
+      message = `La categoría "${category.name}" tiene ${currentCount} anotaciones en este dataset. ¿Estás seguro de que quieres eliminarla? Esto eliminará también las anotaciones asociadas.`
+    } else if (globalCount > 0) {
+      message = `La categoría "${category.name}" no tiene anotaciones en este dataset, pero sí en otros datasets (${globalCount} total). ¿Quieres eliminarla completamente del sistema?`
+    }
+  } else {
+    // En contexto global
+    if (globalCount > 0) {
+      message = `La categoría "${category.name}" tiene ${globalCount} anotaciones en total. ¿Estás seguro de que quieres eliminarla? Esto eliminará también todas las anotaciones asociadas.`
+    }
   }
   
-  if (!confirm(`¿Estás seguro de que quieres eliminar la categoría "${category.name}"?`)) {
+  if (!confirm(message)) {
     return
   }
   
   try {
-    await store.deleteCategory(category.id)
+    await store.deleteCategory(category.id, true) // force = true
     alert('Categoría eliminada correctamente')
   } catch (error) {
     console.error('Error al eliminar categoría:', error)
@@ -352,6 +377,7 @@ function selectCategory(category) {
 
 async function refreshCategories() {
   await loadCategories()
+  await store.loadAllAnnotations()  // Cargar todas las anotaciones para conteos actualizados
 }
 
 function closeCreateModal() {
@@ -378,6 +404,10 @@ onMounted(() => {
   // Cargar categorías si no están ya cargadas
   if (categories.value.length === 0) {
     loadCategories()
+  }
+  // Cargar todas las anotaciones para poder calcular conteos correctos
+  if (annotations.value.length === 0) {
+    store.loadAllAnnotations()
   }
 })
 </script>

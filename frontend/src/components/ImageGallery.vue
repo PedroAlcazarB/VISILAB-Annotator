@@ -200,12 +200,12 @@ async function onFilesUploaded(uploadedImages) {
   }
 }
 
-function selectImage(index) {
+async function selectImage(index) {
   currentImageIndex.value = index
   
   // Establecer imagen actual en el store
   if (store.images[index]) {
-    store.setCurrentImage(store.images[index])
+    await store.setCurrentImage(store.images[index])
   }
   
   // Ajustar página si es necesario
@@ -265,15 +265,8 @@ function goToPage(page) {
 // Funciones de vista de anotación
 async function openAnnotationView() {
   if (currentImage.value) {
-    store.setCurrentImage(currentImage.value)
+    await store.setCurrentImage(currentImage.value)
     showAnnotationView.value = true
-    
-    // Cargar anotaciones para esta imagen
-    try {
-      await store.loadAnnotations(currentImage.value._id)
-    } catch (error) {
-      console.error('Error al cargar anotaciones:', error)
-    }
   }
 }
 

@@ -410,15 +410,27 @@ def create_annotation():
 
 @app.route('/api/annotations', methods=['GET'])
 def get_annotations():
-    """Obtener anotaciones de una imagen específica"""
+    """Obtener anotaciones de una imagen específica, todas las anotaciones o anotaciones de un dataset"""
     try:
         image_id = request.args.get('image_id')
-        
-        if not image_id:
-            return jsonify({'error': 'image_id es requerido'}), 400
+        dataset_id = request.args.get('dataset_id')
         
         db = get_db()
-        annotations = list(db.annotations.find({'image_id': image_id}))
+        
+        if image_id:
+            # Obtener anotaciones de una imagen específica
+            annotations = list(db.annotations.find({'image_id': image_id}))
+        elif dataset_id:
+            # Obtener todas las anotaciones de un dataset específico
+            # Primero obtener todas las imágenes del dataset
+            images = list(db.images.find({'dataset_id': dataset_id}))
+            image_ids = [str(img['_id']) for img in images]
+            
+            # Luego obtener anotaciones de esas imágenes
+            annotations = list(db.annotations.find({'image_id': {'$in': image_ids}}))
+        else:
+            # Obtener todas las anotaciones
+            annotations = list(db.annotations.find())
         
         return jsonify({
             'annotations': [serialize_doc(ann) for ann in annotations]
@@ -645,23 +657,57 @@ def update_category(category_id):
 
 @app.route('/api/categories/<category_id>', methods=['DELETE'])
 def delete_category(category_id):
-    """Eliminar una categoría"""
+    """Eliminar una categoría y opcionalmente sus anotaciones asociadas"""
     try:
         db = get_db()
+        dataset_id = request.args.get('dataset_id')  # Parámetro opcional para contexto de dataset
+        force = request.args.get('force', 'false').lower() == 'true'  # Forzar eliminación
         
-        # Verificar si existen anotaciones con esta categoría
-        annotation_count = db.annotations.count_documents({
-            '$or': [
-                {'category_id': category_id},
-                {'category': category_id}
-            ]
-        })
+        if dataset_id:
+            # Contexto de dataset: solo considerar anotaciones de ese dataset
+            # Primero obtener todas las imágenes del dataset
+            images = list(db.images.find({'dataset_id': dataset_id}))
+            image_ids = [str(img['_id']) for img in images]
+            
+            # Buscar anotaciones de esta categoría en las imágenes del dataset
+            annotations_query = {
+                '$and': [
+                    {'image_id': {'$in': image_ids}},
+                    {'$or': [
+                        {'category_id': category_id},
+                        {'category': category_id}
+                    ]}
+                ]
+            }
+            
+            context_message = f"en el dataset"
+        else:
+            # Contexto global: considerar todas las anotaciones
+            annotations_query = {
+                '$or': [
+                    {'category_id': category_id},
+                    {'category': category_id}
+                ]
+            }
+            
+            context_message = f"en el sistema"
         
-        if annotation_count > 0:
+        # Contar anotaciones que serían afectadas
+        annotation_count = db.annotations.count_documents(annotations_query)
+        
+        # Si hay anotaciones y no se fuerza, informar al usuario
+        if annotation_count > 0 and not force:
             return jsonify({
-                'error': f'No se puede eliminar la categoría. Tiene {annotation_count} anotaciones asociadas.',
-                'annotation_count': annotation_count
+                'error': f'La categoría tiene {annotation_count} anotaciones asociadas {context_message}.',
+                'annotation_count': annotation_count,
+                'requires_force': True
             }), 400
+        
+        # Si se fuerza o no hay anotaciones, proceder con la eliminación
+        if annotation_count > 0:
+            # Eliminar anotaciones asociadas primero
+            delete_result = db.annotations.delete_many(annotations_query)
+            print(f"Eliminadas {delete_result.deleted_count} anotaciones de la categoría {category_id}")
         
         # Eliminar categoría
         result = db.categories.delete_one({'_id': ObjectId(category_id)})
@@ -670,11 +716,72 @@ def delete_category(category_id):
             return jsonify({'error': 'Categoría no encontrada'}), 404
         
         return jsonify({
-            'message': 'Categoría eliminada correctamente'
+            'message': 'Categoría eliminada correctamente',
+            'deleted_annotations': annotation_count
         })
         
     except Exception as e:
         return jsonify({'error': f'Error al eliminar categoría: {str(e)}'}), 500
+
+@app.route('/api/categories/<category_id>/toggle-visibility', methods=['PATCH'])
+def toggle_category_visibility(category_id):
+    """Toggle visibilidad de una categoría para un dataset específico"""
+    try:
+        db = get_db()
+        dataset_id = request.args.get('dataset_id')
+        
+        if not dataset_id:
+            return jsonify({'error': 'dataset_id es requerido'}), 400
+        
+        # Buscar o crear registro de visibilidad
+        visibility_doc = db.category_visibility.find_one({
+            'category_id': category_id,
+            'dataset_id': dataset_id
+        })
+        
+        if visibility_doc:
+            # Toggle visibilidad existente
+            new_hidden = not visibility_doc.get('hidden', False)
+            db.category_visibility.update_one(
+                {'_id': visibility_doc['_id']},
+                {'$set': {'hidden': new_hidden}}
+            )
+        else:
+            # Crear nuevo registro (por defecto visible, así que lo ocultamos)
+            new_hidden = True
+            db.category_visibility.insert_one({
+                'category_id': category_id,
+                'dataset_id': dataset_id,
+                'hidden': new_hidden
+            })
+        
+        return jsonify({
+            'message': 'Visibilidad actualizada',
+            'hidden': new_hidden
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al toggle visibilidad: {str(e)}'}), 500
+
+@app.route('/api/categories/visibility/<dataset_id>', methods=['GET'])
+def get_categories_visibility(dataset_id):
+    """Obtener visibilidad de categorías para un dataset"""
+    try:
+        db = get_db()
+        
+        visibility_records = list(db.category_visibility.find({'dataset_id': dataset_id}))
+        
+        # Convertir a diccionario para fácil acceso
+        visibility_map = {}
+        for record in visibility_records:
+            visibility_map[record['category_id']] = record.get('hidden', False)
+        
+        return jsonify({
+            'visibility': visibility_map
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener visibilidad: {str(e)}'}), 500
 
 @app.route('/api/categories/data', methods=['GET'])
 def get_categories_data():
@@ -1460,124 +1567,165 @@ def merge_coco_json_files(json_files_data):
 
 
 def process_coco_format(db, annotations_file, images_file, dataset_id):
-    """Procesar archivo COCO JSON o ZIP con múltiples JSONs"""
+    """Procesar archivo COCO JSON o ZIP con múltiples JSONs, con búsqueda por nombre de imagen dentro del dataset"""
     import json
     import zipfile
     import tempfile
-    
+    import random
+    from bson import ObjectId
+    from datetime import datetime
+    import os
+
+    def generate_random_color():
+        """Generar un color aleatorio en formato hex"""
+        return f"#{random.randint(0, 0xFFFFFF):06x}"
+
     coco_data = None
-    
-    # Detectar si es ZIP o JSON
+
+    # Intentar cargar JSON o ZIP
     try:
-        # Intentar leer como JSON directo
-        annotations_file.seek(0)  # Volver al inicio del archivo
+        annotations_file.seek(0)
         coco_data = json.load(annotations_file)
     except json.JSONDecodeError:
-        # Si falla, intentar como ZIP
         annotations_file.seek(0)
         try:
             with tempfile.TemporaryDirectory() as temp_dir:
                 with zipfile.ZipFile(annotations_file, 'r') as zip_ref:
                     zip_ref.extractall(temp_dir)
-                
-                # Buscar todos los archivos JSON en el ZIP
                 json_files = []
-                for root, dirs, files in os.walk(temp_dir):
+                for root, _, files in os.walk(temp_dir):
                     for file in files:
                         if file.endswith('.json'):
-                            json_path = os.path.join(root, file)
-                            with open(json_path, 'r') as f:
+                            with open(os.path.join(root, file), 'r') as f:
                                 try:
-                                    json_data = json.load(f)
-                                    json_files.append(json_data)
-                                    print(f"Archivo COCO detectado: {file}")
-                                except json.JSONDecodeError:
-                                    print(f"Archivo JSON inválido ignorado: {file}")
-                
-                if not json_files:
-                    raise ValueError("No se encontraron archivos JSON válidos en el ZIP")
-                
-                # Combinar todos los archivos JSON
+                                    json_files.append(json.load(f))
+                                except Exception:
+                                    continue
                 if len(json_files) == 1:
                     coco_data = json_files[0]
-                else:
-                    print(f"Combinando {len(json_files)} archivos JSON de COCO...")
+                elif len(json_files) > 1:
                     coco_data = merge_coco_json_files(json_files)
-                    
+                else:
+                    raise ValueError("No se encontraron archivos JSON válidos")
         except zipfile.BadZipFile:
             raise ValueError("El archivo no es un JSON válido ni un ZIP válido")
-    
+
     if not coco_data:
-        raise ValueError("No se pudo leer el archivo COCO")
-    
+        raise ValueError("Archivo COCO inválido")
+
     stats = {'images': 0, 'annotations': 0, 'categories': 0, 'errors': []}
-    
-    # Crear mapeo de categorías
+
+    # ================================
+    # CREAR / MAPEAR CATEGORÍAS
+    # ================================
     category_map = {}
     if 'categories' in coco_data:
         for cat in coco_data['categories']:
-            # Verificar si la categoría ya existe
-            existing = db.categories.find_one({
-                'name': cat['name'],
-                'project_id': dataset_id or 'default'
-            })
-            
+            cat_name = cat['name']
+            color = cat.get('color', generate_random_color())
+            if not color.startswith('#') or len(color) != 7:
+                color = generate_random_color()
+
+            # Buscar por nombre en la gestión de categorías del proyecto default
+            existing = db.categories.find_one({'name': cat_name, 'project_id': 'default'})
             if existing:
                 category_map[cat['id']] = str(existing['_id'])
+                print(f"✅ Categoría existente: {cat_name}")
             else:
+                # Crear nueva categoría con color aleatorio si no tiene
                 new_cat = {
-                    'name': cat['name'],
-                    'color': cat.get('color', f"#{hash(cat['name']) & 0xFFFFFF:06x}"),
-                    'project_id': dataset_id or 'default',
-                    'created_date': datetime.utcnow()
+                    'name': cat_name,
+                    'color': color,
+                    'project_id': 'default',
+                    'created_date': datetime.utcnow(),
+                    'annotation_count': 0
                 }
                 result = db.categories.insert_one(new_cat)
                 category_map[cat['id']] = str(result.inserted_id)
                 stats['categories'] += 1
-    
-    # Crear mapeo de imágenes
+                print(f"🆕 Categoría creada: {cat_name} ({color})")
+
+    # =====================================
+    # MAPEAR IMÁGENES POR NOMBRE DENTRO DEL DATASET
+    # =====================================
     image_map = {}
     if 'images' in coco_data:
         for img in coco_data['images']:
-            # Buscar imagen existente por nombre de archivo
-            existing_img = db.images.find_one({'filename': img['file_name']})
-            
+            filename = img['file_name']
+            existing_img = db.images.find_one({
+                'filename': filename,
+                'dataset_id': dataset_id  # <-- Solo dentro del dataset actual
+            })
+
             if existing_img:
                 image_map[img['id']] = str(existing_img['_id'])
                 stats['images'] += 1
+                print(f"🖼️ Imagen encontrada en dataset: {filename}")
             else:
-                stats['errors'].append(f"Imagen no encontrada: {img['file_name']}")
-    
-    # Importar anotaciones
-    if 'annotations' in coco_data:
-        for ann in coco_data['annotations']:
-            if ann['image_id'] not in image_map:
-                continue
-            
-            # Convertir formato COCO a nuestro formato interno
-            annotation_doc = {
-                'image_id': image_map[ann['image_id']],
-                'category': category_map.get(ann['category_id'], 'unknown'),
-                'category_id': category_map.get(ann['category_id']),
-                'bbox': ann.get('bbox', []),
-                'area': ann.get('area', 0),
-                'type': 'bbox',  # Por defecto
-                'created_date': datetime.utcnow(),
-                'dataset_id': dataset_id
-            }
-            
-            # Si tiene segmentación, es un polígono
-            if 'segmentation' in ann and ann['segmentation']:
+                stats['errors'].append(f"No se encontró la imagen {filename} en el dataset actual")
+                print(f"⚠️ Imagen no encontrada en dataset: {filename}")
+
+    # =====================================
+    # IMPORTAR ANOTACIONES
+    # =====================================
+    category_annotation_count = {}
+
+    for ann in coco_data.get('annotations', []):
+        image_id = image_map.get(ann['image_id'])
+        category_id = category_map.get(ann['category_id'])
+        if not image_id or not category_id:
+            continue
+
+        bbox = ann.get('bbox', [0, 0, 0, 0])
+        area = ann.get('area', 0) or (bbox[2] * bbox[3] if len(bbox) >= 4 else 0)
+
+        # Obtener color de la categoría para el stroke
+        category_color = '#00ff00'  # Color por defecto
+        try:
+            category_doc = db.categories.find_one({'_id': ObjectId(category_id)})
+            if category_doc and 'color' in category_doc:
+                category_color = category_doc['color']
+        except Exception:
+            pass
+
+        annotation_doc = {
+            'image_id': image_id,
+            'category_id': category_id,
+            'bbox': bbox,
+            'area': area,
+            'type': 'bbox',
+            'stroke': category_color,
+            'strokeWidth': 2,
+            'fill': 'rgba(0,255,0,0.2)',
+            'closed': False,
+            'created_date': datetime.utcnow(),
+            'modified_date': datetime.utcnow()
+        }
+
+        # Polígonos (segmentación)
+        if 'segmentation' in ann and ann['segmentation']:
+            seg = ann['segmentation'][0] if isinstance(ann['segmentation'], list) else []
+            if seg and isinstance(seg, list) and len(seg) >= 6:  # Al menos 3 puntos (6 valores)
+                points = [[seg[i], seg[i+1]] for i in range(0, len(seg), 2)]
+                annotation_doc['points'] = points
                 annotation_doc['type'] = 'polygon'
-                # Convertir segmentación COCO a puntos
-                if isinstance(ann['segmentation'], list) and len(ann['segmentation']) > 0:
-                    seg = ann['segmentation'][0]
-                    points = [[seg[i], seg[i+1]] for i in range(0, len(seg), 2)]
-                    annotation_doc['points'] = points
-            
-            db.annotations.insert_one(annotation_doc)
-            stats['annotations'] += 1
-    
+                annotation_doc['closed'] = True
+
+        db.annotations.insert_one(annotation_doc)
+        stats['annotations'] += 1
+        category_annotation_count[category_id] = category_annotation_count.get(category_id, 0) + 1
+
+    # =====================================
+    # ACTUALIZAR CONTADOR DE CATEGORÍAS
+    # =====================================
+    for category_id, count in category_annotation_count.items():
+        total = db.annotations.count_documents({'category_id': category_id})
+        db.categories.update_one(
+            {'_id': ObjectId(category_id)},
+            {'$set': {'annotation_count': total}}
+        )
+        print(f"📊 Categoría {category_id}: {total} anotaciones totales")
+
     return stats
 
 def process_yolo_format(db, annotations_file, images_file, dataset_id):
@@ -1953,22 +2101,65 @@ def export_coco_format(dataset, images, annotations, categories, include_images)
             continue
         
         bbox = ann.get('bbox', [0, 0, 0, 0])
-        # Calcular área: width * height del bbox
-        # El formato bbox es [x, y, width, height]
-        area = bbox[2] * bbox[3] if len(bbox) >= 4 else 0
         
-        ann_data = {
-            'id': idx,
-            'image_id': image_id,
-            'category_id': category_id,
-            'bbox': bbox,
-            'area': area,
-            'iscrowd': 0
-        }
-        
-        # Agregar segmentación si existe
-        if 'segmentation' in ann and ann['segmentation']:
-            ann_data['segmentation'] = ann['segmentation']
+        # Si la anotación tiene puntos, es un polígono
+        if 'points' in ann and ann['points'] and len(ann['points']) > 0:
+            # Convertir puntos a formato de segmentación COCO
+            points = ann['points']
+            # Aplanar los puntos: [[x1, y1], [x2, y2], ...] -> [x1, y1, x2, y2, ...]
+            segmentation = []
+            for point in points:
+                if len(point) >= 2:
+                    segmentation.extend([point[0], point[1]])
+            
+            # Calcular bbox desde los puntos del polígono
+            if segmentation and len(segmentation) >= 6:  # Al menos 3 puntos
+                x_coords = [segmentation[i] for i in range(0, len(segmentation), 2)]
+                y_coords = [segmentation[i] for i in range(1, len(segmentation), 2)]
+                
+                x_min, x_max = min(x_coords), max(x_coords)
+                y_min, y_max = min(y_coords), max(y_coords)
+                
+                # Formato COCO bbox: [x, y, width, height]
+                bbox = [x_min, y_min, x_max - x_min, y_max - y_min]
+                
+                # Calcular área del polígono usando fórmula shoelace
+                area = 0
+                n = len(x_coords)
+                for i in range(n):
+                    j = (i + 1) % n
+                    area += x_coords[i] * y_coords[j]
+                    area -= x_coords[j] * y_coords[i]
+                area = abs(area) / 2.0
+            else:
+                # Si no hay suficientes puntos, usar área del bbox
+                area = bbox[2] * bbox[3] if len(bbox) >= 4 else 0
+                
+            ann_data = {
+                'id': idx,
+                'image_id': image_id,
+                'category_id': category_id,
+                'bbox': bbox,
+                'area': area,
+                'segmentation': [segmentation],  # COCO usa lista de listas
+                'iscrowd': 0
+            }
+        else:
+            # Es un rectángulo/bbox
+            area = bbox[2] * bbox[3] if len(bbox) >= 4 else 0
+            
+            ann_data = {
+                'id': idx,
+                'image_id': image_id,
+                'category_id': category_id,
+                'bbox': bbox,
+                'area': area,
+                'iscrowd': 0
+            }
+            
+            # Agregar segmentación si existe (para compatibilidad con datos importados)
+            if 'segmentation' in ann and ann['segmentation']:
+                ann_data['segmentation'] = ann['segmentation']
         
         coco_data['annotations'].append(ann_data)
     

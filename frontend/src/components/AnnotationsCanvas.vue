@@ -366,11 +366,8 @@ const drawingRect = reactive({
 })
 
 const annotations = computed(() => {
-  // Filtrar anotaciones solo para la imagen actual
-  if (props.imageId) {
-    return store.getAnnotationsByImageId(props.imageId)
-  }
-  return store.annotations
+  // Usar el nuevo getter que ya incluye filtrado por imagen actual y visibilidad
+  return store.getVisibleCurrentImageAnnotations
 })
 
 // Función para obtener el color de una categoría

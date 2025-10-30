@@ -9,6 +9,8 @@ export const useAnnotationStore = defineStore('annotation', {
     annotations: [],
     images: [],
     categories: [],
+    categoryVisibility: {}, // Nuevo: visibilidad por dataset
+    annotationVisibility: {}, // Nuevo: visibilidad de anotaciones individuales
     
     // Contexto del dataset actual
     currentDataset: null,
@@ -66,6 +68,74 @@ export const useAnnotationStore = defineStore('annotation', {
     
     getImageById: (state) => (id) => {
       return state.images.find(img => img._id === id || img.id === id)
+    },
+
+    // Nuevo getter para conteo contextual de anotaciones por categoría
+    getCategoryAnnotationCount: (state) => (categoryId) => {
+      return state.annotations.filter(ann => 
+        ann.category_id === categoryId || ann.category === categoryId
+      ).length
+    },
+
+    // Nuevo getter para verificar si una categoría está oculta
+    isCategoryHidden: (state) => (categoryId) => {
+      if (!state.currentDataset) return false
+      return state.categoryVisibility[categoryId] || false
+    },
+
+    // Nuevo getter para obtener anotaciones de una categoría específica
+    getAnnotationsByCategory: (state) => (categoryId) => {
+      return state.annotations.filter(ann => 
+        ann.category_id === categoryId || ann.category === categoryId
+      )
+    },
+
+    // Nuevo getter para verificar si una anotación está oculta
+    isAnnotationHidden: (state) => (annotationId) => {
+      return state.annotationVisibility[annotationId] || false
+    },
+
+    // Nuevo getter para obtener anotaciones de la imagen actual agrupadas por categoría
+    getCurrentImageAnnotationsByCategory: (state) => {
+      if (!state.currentImage) return {}
+      
+      const imageAnnotations = state.annotations.filter(ann => 
+        ann.image_id === state.currentImage.id || ann.image_id === state.currentImage._id
+      )
+      
+      // Agrupar por categoría
+      const groupedAnnotations = {}
+      imageAnnotations.forEach(annotation => {
+        const categoryId = annotation.category_id || annotation.category
+        if (!groupedAnnotations[categoryId]) {
+          groupedAnnotations[categoryId] = []
+        }
+        groupedAnnotations[categoryId].push(annotation)
+      })
+      
+      return groupedAnnotations
+    },
+
+    // Nuevo getter para obtener anotaciones visibles de la imagen actual
+    getVisibleCurrentImageAnnotations: (state) => {
+      if (!state.currentImage) return []
+      
+      return state.annotations.filter(ann => {
+        // Filtrar por imagen actual
+        const isCurrentImage = ann.image_id === state.currentImage.id || ann.image_id === state.currentImage._id
+        if (!isCurrentImage) return false
+        
+        // Filtrar por visibilidad de categoría
+        const categoryId = ann.category_id || ann.category
+        const isCategoryHidden = state.categoryVisibility[categoryId] || false
+        if (isCategoryHidden) return false
+        
+        // Filtrar por visibilidad de anotación individual
+        const isAnnotationHidden = state.annotationVisibility[ann.id || ann._id] || false
+        if (isAnnotationHidden) return false
+        
+        return true
+      })
     }
   },
   
@@ -240,6 +310,104 @@ export const useAnnotationStore = defineStore('annotation', {
         throw error
       } finally {
         this.loading = false
+      }
+    },
+
+    async loadAllAnnotations() {
+      this.loading = true
+      this.clearError()
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/annotations`)
+        
+        if (!response.ok) {
+          throw new Error(`Error ${response.status}: ${response.statusText}`)
+        }
+        
+        const data = await response.json()
+        
+        // Reemplazar todas las anotaciones en el estado local
+        this.annotations = data.annotations
+        
+        return data.annotations
+        
+      } catch (error) {
+        this.setError(`Error al cargar todas las anotaciones: ${error.message}`)
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+
+    async loadAnnotationsByDataset(datasetId) {
+      this.loading = true
+      this.clearError()
+      
+      try {
+        const targetDatasetId = datasetId || this.currentDataset?._id
+        
+        if (!targetDatasetId) {
+          throw new Error('No se proporcionó dataset_id y no hay dataset actual')
+        }
+        
+        const response = await fetch(`${API_BASE_URL}/annotations?dataset_id=${targetDatasetId}`)
+        
+        if (!response.ok) {
+          throw new Error(`Error ${response.status}: ${response.statusText}`)
+        }
+        
+        const data = await response.json()
+        
+        // Reemplazar anotaciones del dataset en el estado local
+        this.annotations = data.annotations
+        
+        return data.annotations
+        
+      } catch (error) {
+        this.setError(`Error al cargar anotaciones del dataset: ${error.message}`)
+        throw error
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // Método para obtener conteo global de anotaciones de una categoría (todos los datasets)
+    async getCategoryGlobalAnnotationCount(categoryId) {
+      try {
+        const response = await fetch(`${API_BASE_URL}/annotations`)
+        
+        if (!response.ok) {
+          throw new Error(`Error ${response.status}: ${response.statusText}`)
+        }
+        
+        const data = await response.json()
+        
+        // Contar anotaciones de esta categoría en todas las anotaciones
+        return data.annotations.filter(ann => 
+          ann.category_id === categoryId || ann.category === categoryId
+        ).length
+        
+      } catch (error) {
+        console.error('Error al obtener conteo global:', error)
+        return 0
+      }
+    },
+
+    // Método para verificar si una categoría puede ser eliminada en el contexto actual
+    async canDeleteCategory(categoryId) {
+      try {
+        if (this.currentDataset) {
+          // En contexto de dataset: verificar solo anotaciones del dataset actual
+          // Las anotaciones ya están cargadas del dataset actual
+          return this.getCategoryAnnotationCount(categoryId) === 0
+        } else {
+          // En contexto global: verificar anotaciones en todos los datasets
+          const globalCount = await this.getCategoryGlobalAnnotationCount(categoryId)
+          return globalCount === 0
+        }
+      } catch (error) {
+        console.error('Error al verificar si se puede eliminar categoría:', error)
+        return false
       }
     },
     
@@ -444,12 +612,28 @@ export const useAnnotationStore = defineStore('annotation', {
       }
     },
     
-    async deleteCategory(categoryId) {
+    async deleteCategory(categoryId, force = false) {
       this.loading = true
       this.clearError()
       
       try {
-        const response = await fetch(`${API_BASE_URL}/categories/${categoryId}`, {
+        // Construir URL con dataset_id si estamos en contexto de dataset
+        let url = `${API_BASE_URL}/categories/${categoryId}`
+        const params = new URLSearchParams()
+        
+        if (this.currentDataset) {
+          params.append('dataset_id', this.currentDataset._id)
+        }
+        
+        if (force) {
+          params.append('force', 'true')
+        }
+        
+        if (params.toString()) {
+          url += `?${params.toString()}`
+        }
+        
+        const response = await fetch(url, {
           method: 'DELETE'
         })
         
@@ -465,8 +649,13 @@ export const useAnnotationStore = defineStore('annotation', {
             remainingCategories[0].id : null
         }
         
-        // Recargar categorías para mantener consistencia
+        // Recargar categorías y anotaciones para mantener consistencia
         await this.loadCategories()
+        if (this.currentDataset) {
+          await this.loadAnnotationsByDataset()
+        } else {
+          await this.loadAllAnnotations()
+        }
         
       } catch (error) {
         this.setError(`Error al eliminar categoría: ${error.message}`)
@@ -474,6 +663,75 @@ export const useAnnotationStore = defineStore('annotation', {
       } finally {
         this.loading = false
       }
+    },
+    
+    // ==================== MANEJO DE VISIBILIDAD ====================
+    
+    async loadCategoryVisibility(datasetId) {
+      if (!datasetId && !this.currentDataset) return
+      
+      try {
+        const targetDatasetId = datasetId || this.currentDataset._id
+        const response = await fetch(`${API_BASE_URL}/categories/visibility/${targetDatasetId}`)
+        
+        if (!response.ok) {
+          throw new Error(`Error ${response.status}: ${response.statusText}`)
+        }
+        
+        const data = await response.json()
+        this.categoryVisibility = data.visibility || {}
+        
+      } catch (error) {
+        console.error('Error al cargar visibilidad de categorías:', error)
+        this.categoryVisibility = {}
+      }
+    },
+
+    async toggleCategoryVisibility(categoryId) {
+      if (!this.currentDataset) return
+      
+      try {
+        const response = await fetch(`${API_BASE_URL}/categories/${categoryId}/toggle-visibility?dataset_id=${this.currentDataset._id}`, {
+          method: 'PATCH'
+        })
+        
+        if (!response.ok) {
+          throw new Error(`Error ${response.status}: ${response.statusText}`)
+        }
+        
+        const data = await response.json()
+        
+        // Actualizar estado local
+        this.categoryVisibility[categoryId] = data.hidden
+        
+        return data.hidden
+        
+      } catch (error) {
+        this.setError(`Error al cambiar visibilidad: ${error.message}`)
+        throw error
+      }
+    },
+
+    // Métodos para manejar visibilidad de anotaciones individuales
+    toggleAnnotationVisibility(annotationId) {
+      // Para anotaciones, manejamos la visibilidad localmente
+      this.annotationVisibility[annotationId] = !this.annotationVisibility[annotationId]
+    },
+
+    hideAllCategoryAnnotations(categoryId) {
+      // Ocultar todas las anotaciones de una categoría
+      const categoryAnnotations = this.getAnnotationsByCategory(categoryId)
+      categoryAnnotations.forEach(annotation => {
+        this.annotationVisibility[annotation._id] = true
+      })
+    },
+
+    showAllCategoryAnnotations(categoryId) {
+      // Mostrar todas las anotaciones de una categoría
+      const categoryAnnotations = this.getAnnotationsByCategory(categoryId)
+      categoryAnnotations.forEach(annotation => {
+        this.annotationVisibility[annotation._id] = false
+      })
     },
     
     // ==================== ACCIONES LOCALES ====================
@@ -579,8 +837,18 @@ export const useAnnotationStore = defineStore('annotation', {
       }
     },
     
-    setCurrentImage(image) {
+    async setCurrentImage(image) {
       this.currentImage = image
+      
+      // Cargar anotaciones de la imagen actual
+      if (image && (image.id || image._id)) {
+        const imageId = image.id || image._id
+        try {
+          await this.loadAnnotations(imageId)
+        } catch (error) {
+          console.error('Error al cargar anotaciones para la imagen:', error)
+        }
+      }
     },
     
     setCurrentDataset(dataset) {
@@ -608,7 +876,9 @@ export const useAnnotationStore = defineStore('annotation', {
       try {
         await Promise.all([
           this.loadImages(datasetId),
-          this.loadCategories(datasetId)
+          this.loadCategories(datasetId),
+          this.loadAnnotationsByDataset(datasetId),
+          this.loadCategoryVisibility(datasetId)
         ])
       } catch (error) {
         console.error('Error al inicializar store:', error)

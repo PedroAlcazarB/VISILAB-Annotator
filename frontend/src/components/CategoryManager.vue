@@ -1,48 +1,44 @@
 <template>
   <div class="categories-manager">
+    <!-- Header -->
     <div class="categories-header">
       <h3>Gestión de Categorías</h3>
-      <button @click="showAddForm = !showAddForm" class="btn-primary">
-        {{ showAddForm ? 'Cancelar' : '+ Nueva Categoría' }}
+      <button @click="showAddForm = true" class="btn-primary">
+        + Nueva Categoría
       </button>
     </div>
 
-    <!-- Formulario para añadir nueva categoría -->
-    <div v-if="showAddForm" class="add-category-form">
+    <!-- Formulario para nueva categoría -->
+    <div v-if="showAddForm" class="add-form">
+      <h4>Nueva Categoría</h4>
       <div class="form-group">
-        <label for="categoryName">Nombre de la categoría:</label>
+        <label>Nombre:</label>
         <input 
-          id="categoryName"
           v-model="newCategory.name" 
           type="text" 
-          placeholder="Ej: Persona, Vehículo, Animal..."
           class="form-input"
-          @keyup.enter="addCategory"
+          placeholder="Nombre de la categoría"
         >
       </div>
       <div class="form-group">
-        <label for="categoryColor">Color:</label>
+        <label>Color:</label>
         <input 
-          id="categoryColor"
           v-model="newCategory.color" 
           type="color" 
           class="form-color"
         >
       </div>
       <div class="form-actions">
-        <button @click="addCategory" class="btn-success" :disabled="!newCategory.name.trim()">
-          Añadir Categoría
+        <button @click="addCategory" class="btn-success" :disabled="adding">
+          {{ adding ? 'Añadiendo...' : 'Añadir' }}
         </button>
-        <button @click="cancelAdd" class="btn-secondary">
-          Cancelar
-        </button>
+        <button @click="cancelAdd" class="btn-secondary">Cancelar</button>
       </div>
     </div>
 
-    <!-- Lista de categorías existentes -->
+    <!-- Lista de categorías -->
     <div class="categories-list">
       <div v-if="loading" class="loading-state">
-        <i class="fas fa-spinner fa-spin"></i>
         <p>Cargando categorías...</p>
       </div>
       
@@ -57,36 +53,69 @@
         v-else
         v-for="category in categories" 
         :key="category.id" 
-        class="category-item"
-        :class="{ 'active': selectedCategory === category.id }"
-        @click="selectCategory(category.id)"
+        class="category-section"
       >
-        <div class="category-info">
-          <div 
-            class="category-color" 
-            :style="{ backgroundColor: category.color }"
-          ></div>
-          <div class="category-details">
-            <span class="category-name">{{ category.name }}</span>
+        <!-- Header de la categoría -->
+        <div 
+          class="category-header"
+          :class="{ 
+            'active': selectedCategory === category.id,
+            'hidden-category': isHidden(category.id)
+          }"
+          @click="selectCategory(category.id)"
+        >
+          <div class="category-info">
+            <div 
+              class="category-color" 
+              :style="{ backgroundColor: category.color }"
+            ></div>
+            <div class="category-details">
+              <span class="category-name">{{ category.name }}</span>
+            </div>
+            <span class="category-count">({{ getCategoryAnnotationCount(category.id) }})</span>
           </div>
-          <span class="category-count">({{ getCategoryAnnotationCount(category.id) }})</span>
+          <div class="category-actions">
+            <button 
+              @click.stop="editCategory(category)" 
+              class="btn-edit"
+              title="Editar categoría"
+            >
+              ✏️
+            </button>
+            <button 
+              @click.stop="toggleVisibility(category.id)" 
+              class="btn-visibility"
+              :title="isHidden(category.id) ? 'Mostrar categoría' : 'Ocultar categoría'"
+            >
+              👁️
+            </button>
+          </div>
         </div>
-        <div class="category-actions">
-          <button 
-            @click.stop="editCategory(category)" 
-            class="btn-edit"
-            title="Editar categoría"
+
+        <!-- Lista de anotaciones de esta categoría -->
+        <div 
+          v-if="getCategoryAnnotations(category.id).length > 0" 
+          class="annotations-list"
+        >
+          <div 
+            v-for="(annotation, index) in getCategoryAnnotations(category.id)" 
+            :key="annotation._id"
+            class="annotation-item"
+            :class="{ 'hidden-annotation': isAnnotationHidden(annotation._id) }"
+            @click="selectAnnotation(annotation)"
           >
-            ✏️
-          </button>
-          <button 
-            @click.stop="deleteCategory(category.id)" 
-            class="btn-delete"
-            title="Eliminar categoría"
-            v-if="category.numberAnnotations === 0"
-          >
-            🗑️
-          </button>
+            <span class="annotation-number">{{ index + 1 }}</span>
+            <span class="annotation-id">(id: {{ annotation._id.slice(-2) }})</span>
+            <div class="annotation-actions">
+              <button 
+                @click.stop="toggleAnnotationVisibility(annotation._id)" 
+                class="btn-visibility-small"
+                :title="isAnnotationHidden(annotation._id) ? 'Mostrar anotación' : 'Ocultar anotación'"
+              >
+                👁️
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -119,17 +148,14 @@
     </div>
 
     <!-- Categoría seleccionada actual -->
-    <div class="current-selection" v-if="selectedCategoryInfo">
-      <p>
-        <strong>Categoría:</strong> 
-        <span class="selected-category">
-          <span 
-            class="category-color small" 
-            :style="{ backgroundColor: selectedCategoryInfo.color }"
-          ></span>
-          {{ selectedCategoryInfo.name }}
-        </span>
-      </p>
+    <div v-if="selectedCategory" class="current-selection">
+      <div class="selected-category">
+        <div 
+          class="category-color small" 
+          :style="{ backgroundColor: selectedCategoryData?.color }"
+        ></div>
+        <span>Categoría: {{ selectedCategoryData?.name }}</span>
+      </div>
       <p class="help-text">Las nuevas anotaciones se asignarán a esta categoría</p>
     </div>
   </div>
@@ -139,60 +165,58 @@
 import { ref, computed, onMounted } from 'vue'
 import { useAnnotationStore } from '../stores/annotationStore'
 
+// Store
 const store = useAnnotationStore()
 
+// Estado reactivo
+const categories = computed(() => store.categories)
+const annotations = computed(() => store.annotations)
+const loading = computed(() => store.loading)
+const selectedCategory = computed(() => store.selectedCategory)
+
+const selectedCategoryData = computed(() => {
+  return categories.value.find(cat => cat.id === selectedCategory.value)
+})
+
 const showAddForm = ref(false)
+const adding = ref(false)
 const editingCategory = ref(null)
+
 const newCategory = ref({
   name: '',
   color: '#ff0000'
 })
 
-const categories = computed(() => store.categories)
-const selectedCategory = computed(() => store.selectedCategory)
-const annotations = computed(() => store.annotations)
-const loading = computed(() => store.loading)
-
-const selectedCategoryInfo = computed(() => {
-  return categories.value.find(cat => cat.id === selectedCategory.value)
-})
+// Métodos
+function selectCategory(categoryId) {
+  store.setSelectedCategory(categoryId)
+}
 
 async function addCategory() {
   if (!newCategory.value.name.trim()) return
   
+  adding.value = true
   try {
-    await store.addCategory({
-      name: newCategory.value.name.trim(),
-      color: newCategory.value.color
-    })
-    
-    cancelAdd()
+    await store.addCategory(newCategory.value)
+    newCategory.value = { name: '', color: '#ff0000' }
+    showAddForm.value = false
   } catch (error) {
     // El error ya se maneja en el store
+  } finally {
+    adding.value = false
   }
 }
 
 function cancelAdd() {
   showAddForm.value = false
-  newCategory.value = {
-    name: '',
-    color: '#ff0000'
-  }
-}
-
-function selectCategory(categoryId) {
-  store.setSelectedCategory(categoryId)
+  newCategory.value = { name: '', color: '#ff0000' }
 }
 
 function editCategory(category) {
-  editingCategory.value = { 
-    ...category
-  }
+  editingCategory.value = { ...category }
 }
 
 async function saveEdit() {
-  if (!editingCategory.value) return
-  
   try {
     await store.updateCategory(editingCategory.value)
     editingCategory.value = null
@@ -205,36 +229,56 @@ function cancelEdit() {
   editingCategory.value = null
 }
 
-async function deleteCategory(categoryId) {
-  const category = categories.value.find(cat => cat.id === categoryId)
-  if (!category) return
-  
-  if (category.numberAnnotations > 0) {
-    alert(`No se puede eliminar la categoría "${category.name}" porque tiene ${category.numberAnnotations} anotaciones asociadas.`)
-    return
-  }
-  
-  if (!confirm(`¿Estás seguro de que quieres eliminar la categoría "${category.name}"?`)) {
-    return
-  }
-  
+function getCategoryAnnotationCount(categoryId) {
+  return store.getCategoryAnnotationCount(categoryId)
+}
+
+// Función para verificar si una categoría está oculta
+function isHidden(categoryId) {
+  return store.isCategoryHidden(categoryId)
+}
+
+// Función para toggle visibilidad
+async function toggleVisibility(categoryId) {
   try {
-    await store.deleteCategory(categoryId)
+    await store.toggleCategoryVisibility(categoryId)
   } catch (error) {
-    // El error ya se maneja en el store
+    console.error('Error al cambiar visibilidad:', error)
   }
 }
 
-function getCategoryAnnotationCount(categoryId) {
-  return annotations.value.filter(ann => 
-    ann.category_id === categoryId || ann.category === categoryId
-  ).length
+// Nuevas funciones para manejar anotaciones individuales
+function getCategoryAnnotations(categoryId) {
+  // Usar el nuevo getter que filtra por imagen actual
+  const annotationsByCategory = store.getCurrentImageAnnotationsByCategory
+  return annotationsByCategory[categoryId] || []
+}
+
+function isAnnotationHidden(annotationId) {
+  return store.isAnnotationHidden(annotationId)
+}
+
+function toggleAnnotationVisibility(annotationId) {
+  store.toggleAnnotationVisibility(annotationId)
+}
+
+function selectAnnotation(annotation) {
+  store.selectAnnotation(annotation)
 }
 
 // Cargar categorías al montar el componente
 onMounted(() => {
   if (categories.value.length === 0) {
     store.loadCategories()
+  }
+  // Cargar anotaciones del dataset actual (si hay uno) o todas si no hay dataset
+  if (annotations.value.length === 0) {
+    if (store.currentDataset) {
+      store.loadAnnotationsByDataset()
+      store.loadCategoryVisibility()
+    } else {
+      store.loadAllAnnotations()
+    }
   }
 })
 </script>
@@ -257,6 +301,8 @@ onMounted(() => {
 .categories-header h3 {
   margin: 0;
   color: #2c3e50;
+  font-size: 1.2rem;
+  font-weight: 600;
 }
 
 .btn-primary {
@@ -267,19 +313,25 @@ onMounted(() => {
   border-radius: 4px;
   cursor: pointer;
   font-weight: 500;
-  transition: background 0.2s;
+  font-size: 0.9rem;
 }
 
 .btn-primary:hover {
   background: #2980b9;
 }
 
-.add-category-form {
+.add-form {
   background: white;
-  border-radius: 6px;
   padding: 1rem;
+  border-radius: 6px;
   margin-bottom: 1rem;
-  border: 1px solid #e1e5e9;
+  border: 1px solid #ddd;
+}
+
+.add-form h4 {
+  margin: 0 0 1rem 0;
+  color: #2c3e50;
+  font-size: 1rem;
 }
 
 .form-group {
@@ -288,9 +340,10 @@ onMounted(() => {
 
 .form-group label {
   display: block;
-  margin-bottom: 0.5rem;
+  margin-bottom: 0.25rem;
   font-weight: 500;
-  color: #2c3e50;
+  color: #555;
+  font-size: 0.9rem;
 }
 
 .form-input {
@@ -302,8 +355,8 @@ onMounted(() => {
 }
 
 .form-color {
-  width: 60px;
-  height: 40px;
+  width: 50px;
+  height: 35px;
   border: 1px solid #ddd;
   border-radius: 4px;
   cursor: pointer;
@@ -357,76 +410,83 @@ onMounted(() => {
 .loading-state, .empty-state {
   text-align: center;
   padding: 2rem;
-  color: #6c757d;
+  color: #666;
 }
 
-.loading-state i {
-  font-size: 1.5rem;
-  margin-bottom: 0.5rem;
-  color: #3498db;
-}
-
-.empty-state p {
-  margin-bottom: 1rem;
-}
-
-.category-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: white;
-  border: 2px solid transparent;
+.category-section {
+  border: 1px solid #e1e5e9;
   border-radius: 6px;
+  background: white;
+  overflow: hidden;
+}
+
+.category-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   padding: 0.75rem;
+  border-bottom: 1px solid #e1e5e9;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.2s;
 }
 
-.category-item:hover {
-  border-color: #3498db;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+.category-header:hover {
+  background: #f8f9fa;
 }
 
-.category-item.active {
+.category-header.active {
   border-color: #27ae60;
   background: #f8fff9;
+}
+
+.category-header.hidden-category {
+  opacity: 0.5;
+  background: #f5f5f5;
+}
+
+.category-header.hidden-category .category-color {
+  opacity: 0.6;
+}
+
+.category-header.hidden-category .category-name {
+  color: #999;
+  text-decoration: line-through;
 }
 
 .category-info {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  flex: 1;
+}
+
+.category-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+}
+
+.category-color.small {
+  width: 12px;
+  height: 12px;
 }
 
 .category-details {
-  display: flex;
-  flex-direction: column;
   flex: 1;
 }
 
 .category-name {
   font-weight: 500;
   color: #2c3e50;
+  font-size: 0.9rem;
 }
 
 .category-count {
-  color: #7f8c8d;
-  font-size: 0.9rem;
-  margin-left: auto;
-}
-
-.category-color {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 2px solid #fff;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
-  flex-shrink: 0;
-}
-
-.category-color.small {
-  width: 16px;
-  height: 16px;
+  color: #666;
+  font-size: 0.85rem;
+  margin-left: 0.5rem;
 }
 
 .category-actions {
@@ -434,22 +494,82 @@ onMounted(() => {
   gap: 0.25rem;
 }
 
-.btn-edit, .btn-delete {
+.btn-edit, .btn-delete, .btn-visibility {
   background: none;
   border: none;
+  font-size: 1rem;
+  cursor: pointer;
   padding: 0.25rem;
   border-radius: 3px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.btn-edit:hover, .btn-delete:hover, .btn-visibility:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.annotations-list {
+  background: #f8f9fa;
+  border-top: 1px solid #e1e5e9;
+}
+
+.annotation-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.5rem 0.75rem;
+  border-bottom: 1px solid #e1e5e9;
   cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.annotation-item:last-child {
+  border-bottom: none;
+}
+
+.annotation-item:hover {
+  background: #e9ecef;
+}
+
+.annotation-item.hidden-annotation {
+  opacity: 0.5;
+  background: #f5f5f5;
+  text-decoration: line-through;
+}
+
+.annotation-number {
+  font-weight: 600;
+  color: #3498db;
   font-size: 0.9rem;
-  transition: background 0.2s;
 }
 
-.btn-edit:hover {
-  background: #f39c12;
+.annotation-id {
+  color: #666;
+  font-size: 0.8rem;
+  margin-left: 0.5rem;
 }
 
-.btn-delete:hover {
-  background: #e74c3c;
+.annotation-actions {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.btn-visibility-small {
+  background: none;
+  border: none;
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0.1rem;
+  border-radius: 3px;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.btn-visibility-small:hover {
+  opacity: 1;
+  background: rgba(0, 0, 0, 0.1);
 }
 
 .modal-overlay {

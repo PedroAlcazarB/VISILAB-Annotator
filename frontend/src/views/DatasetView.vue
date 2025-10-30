@@ -277,14 +277,8 @@ export default {
     
     async openAnnotator(image) {
       this.selectedImage = image
-      // Establecer la imagen actual en el store
-      this.store.setCurrentImage(image)
-      // Cargar anotaciones para esta imagen
-      try {
-        await this.store.loadAnnotations(image._id)
-      } catch (error) {
-        console.error('Error loading annotations for image:', error)
-      }
+      // Establecer la imagen actual en el store (ya carga automáticamente las anotaciones)
+      await this.store.setCurrentImage(image)
     },
     
     closeAnnotator() {
