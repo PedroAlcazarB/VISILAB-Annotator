@@ -3,8 +3,9 @@
     <!-- Header del dataset -->
     <div class="dataset-header">
       <div class="header-left">
-        <button @click="goBack" class="back-btn">
+        <button @click="goBack" class="back-btn" title="Volver al inicio">
           <i class="fas fa-arrow-left"></i>
+          <span class="back-text">Volver</span>
         </button>
         <div class="dataset-info">
           <h1>{{ dataset.name }}</h1>
@@ -121,8 +122,9 @@
     <!-- Modal del anotador -->
     <div v-if="selectedImage" class="annotator-modal">
       <div class="annotator-header">
-        <button @click="closeAnnotator" class="back-btn">
-          <i class="fas fa-arrow-left"></i> Volver al Dataset
+        <button @click="closeAnnotator" class="back-btn" title="Volver al dataset">
+          <i class="fas fa-arrow-left"></i>
+          <span class="back-text">Volver al Dataset</span>
         </button>
         <h2>{{ selectedImage.filename }}</h2>
       </div>
@@ -326,23 +328,47 @@ export default {
 .header-left {
   display: flex;
   align-items: center;
-  gap: 15px;
+  gap: 0;
 }
 
 .back-btn {
-  background: none;
-  border: none;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(108, 117, 125, 0.3);
   cursor: pointer;
-  font-size: 1.2rem;
-  color: #6c757d;
-  padding: 8px;
-  border-radius: 4px;
-  transition: all 0.3s ease;
+  font-size: 0.9rem;
+  color: #495057;
+  padding: 0.65rem 1rem;
+  border-radius: 8px;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  margin-right: 1rem;
+  font-weight: 500;
+}
+
+.back-btn .fas {
+  font-size: 0.85rem;
+}
+
+.back-text {
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
 }
 
 .back-btn:hover {
-  background-color: #e9ecef;
-  color: #495057;
+  background: rgba(52, 152, 219, 0.1);
+  border-color: rgba(52, 152, 219, 0.4);
+  color: #3498db;
+  transform: translateX(-2px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+}
+
+.back-btn:active {
+  transform: translateX(-1px);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .dataset-info h1 {
