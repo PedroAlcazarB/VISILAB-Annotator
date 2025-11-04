@@ -29,18 +29,6 @@ export const useAnnotationStore = defineStore('annotation', {
         tolerance: 5,
         showHandles: true,
         snapToGrid: false
-      },
-      bbox: {
-        autoColor: true,
-        strokeColor: '#ff0000'
-      },
-      polygon: {
-        minDistance: 2,
-        completeDistance: 15,
-        guidance: true
-      },
-      eraser: {
-        radius: 20
       }
     },
 

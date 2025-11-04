@@ -22,6 +22,118 @@
         <!-- Imagen de fondo (no bloquea eventos) -->
         <v-image :config="{ ...imageConfig, listening: false }" />
 
+        <!-- Predicciones de IA -->
+        <template v-for="(prediction, i) in predictions" :key="`prediction-${i}`">
+          <v-group>
+            <!-- Rectángulo de predicción -->
+            <v-rect
+              :config="{
+                x: toCanvasX(prediction.bbox[0]),
+                y: toCanvasY(prediction.bbox[1]),
+                width: prediction.bbox[2],
+                height: prediction.bbox[3],
+                fill: 'transparent',
+                stroke: '#ff6b6b',
+                strokeWidth: 2,
+                dash: [8, 4],
+                listening: true
+              }"
+              @click="handlePredictionClick(prediction, i)"
+              @mouseenter="() => handlePredictionMouseEnter(i)"
+              @mouseleave="handlePredictionMouseLeave"
+            />
+            
+            <!-- Etiqueta de predicción -->
+            <v-group>
+              <v-rect
+                :config="{
+                  x: toCanvasX(prediction.bbox[0]),
+                  y: toCanvasY(prediction.bbox[1]) - 25,
+                  width: getPredictionLabelWidth(prediction),
+                  height: 22,
+                  fill: '#ff6b6b',
+                  cornerRadius: 3,
+                  listening: false
+                }"
+              />
+              <v-text
+                :config="{
+                  x: toCanvasX(prediction.bbox[0]) + 5,
+                  y: toCanvasY(prediction.bbox[1]) - 20,
+                  text: getPredictionLabel(prediction),
+                  fontSize: 12,
+                  fontFamily: 'Arial',
+                  fill: 'white',
+                  listening: false
+                }"
+              />
+            </v-group>
+
+            <!-- Botones de acción para predicciones -->
+            <v-group v-if="hoveredPrediction === i || selectedPrediction === i">
+              <!-- Botón Aceptar (convertir a anotación) -->
+              <v-group
+                @click="acceptPrediction(prediction, i)"
+                @mouseenter="() => predictionButtonHover = 'accept'"
+                @mouseleave="() => predictionButtonHover = null"
+              >
+                <v-circle
+                  :config="{
+                    x: toCanvasX(prediction.bbox[0]) + prediction.bbox[2] - 15,
+                    y: toCanvasY(prediction.bbox[1]) + 15,
+                    radius: 12,
+                    fill: predictionButtonHover === 'accept' ? '#27ae60' : '#2ecc71',
+                    stroke: 'white',
+                    strokeWidth: 2,
+                    listening: true
+                  }"
+                />
+                <v-text
+                  :config="{
+                    x: toCanvasX(prediction.bbox[0]) + prediction.bbox[2] - 19,
+                    y: toCanvasY(prediction.bbox[1]) + 11,
+                    text: '✓',
+                    fontSize: 14,
+                    fontFamily: 'Arial',
+                    fill: 'white',
+                    listening: false
+                  }"
+                />
+              </v-group>
+
+              <!-- Botón Rechazar -->
+              <v-group
+                @click="rejectPrediction(i)"
+                @mouseenter="() => predictionButtonHover = 'reject'"
+                @mouseleave="() => predictionButtonHover = null"
+              >
+                <v-circle
+                  :config="{
+                    x: toCanvasX(prediction.bbox[0]) + prediction.bbox[2] - 15,
+                    y: toCanvasY(prediction.bbox[1]) + 40,
+                    radius: 12,
+                    fill: predictionButtonHover === 'reject' ? '#c0392b' : '#e74c3c',
+                    stroke: 'white',
+                    strokeWidth: 2,
+                    listening: true
+                  }"
+                />
+                <v-text
+                  :config="{
+                    x: toCanvasX(prediction.bbox[0]) + prediction.bbox[2] - 19,
+                    y: toCanvasY(prediction.bbox[1]) + 36,
+                    text: '✕',
+                    fontSize: 14,
+                    fontFamily: 'Arial',
+                    fill: 'white',
+                    listening: false
+                  }"
+                />
+              </v-group>
+            </v-group>
+          </v-group>
+        </template>
+
         <!-- Anotaciones existentes -->
         <template v-for="(ann, i) in annotations" :key="i">
           <!-- Rectángulos -->
@@ -165,6 +277,8 @@
           <v-group
             v-if="ann.type === 'polygon' && ann.points && Array.isArray(ann.points) && ann.points.length >= 3"
             :config="{
+              x: 0,
+              y: 0,
               draggable: props.activeTool === 'edit',
               listening: true
             }"
@@ -174,7 +288,10 @@
           >
             <v-line
               :config="{
-                points: ann.points.flatMap((point) => toCanvasPoint(point)),
+                points: ann.points.flatMap(point => [
+                  toCanvasX(point[0]),
+                  toCanvasY(point[1])
+                ]),
                 fill: getCategoryColor(ann.category || ann.category_id) + '40',
                 stroke: getCategoryColor(ann.category || ann.category_id),
                 strokeWidth: isSelectedAnnotation(ann) ? 3 : 2,
@@ -242,7 +359,7 @@
           :config="{
             x: startPt.x,
             y: startPt.y,
-            radius: eraserRadius,
+            radius: eraserRadius.value,
             stroke: 'red',
             strokeWidth: 2,
             dash: [3, 3],
@@ -379,8 +496,15 @@ const startPt = ref({ x: 0, y: 0 })
 const currentPath = ref([]) // Para polígonos
 const isPolygonComplete = ref(false)
 
+// Variables para predicciones de IA
+const predictions = ref([])
+const predictionCategories = ref([])
+const hoveredPrediction = ref(null)
+const selectedPrediction = ref(null)
+const predictionButtonHover = ref(null)
+
 // Estados específicos para herramientas
-const eraserRadius = computed(() => props.toolSettings?.eraser?.radius || 20)
+const eraserRadius = computed(() => Number(props.toolSettings?.eraser?.radius) || 12)
 const polygonGuidance = computed(() => props.toolSettings?.polygon?.guidance !== false)
 const minDistance = computed(() => props.toolSettings?.polygon?.minDistance || 2)
 const completeDistance = computed(() => props.toolSettings?.polygon?.completeDistance || 15)
@@ -401,15 +525,16 @@ const annotations = computed(() => {
   return store.getVisibleCurrentImageAnnotations
 })
 
-// Función para obtener el color de una categoría
-function getCategoryColor(categoryId) {
-  const category = store.getCategoryById(categoryId)
-  return category ? category.color : '#e74c3c'
-}
+// Función para obtener el color de una categoría sin importar si llega el id o el nombre
+function getCategoryColor(categoryRef) {
+  if (!categoryRef) {
+    return '#e74c3c'
+  }
 
-function selectAnnotation(annotation) {
-  console.log('Anotación seleccionada:', annotation)
-  // Aquí puedes agregar lógica para seleccionar/editar anotaciones
+  const category = store.getCategoryById(categoryRef) ||
+    store.categories.find(cat => cat.name === categoryRef)
+
+  return category && category.color ? category.color : '#e74c3c'
 }
 
 // Variable para prevenir eliminaciones duplicadas
@@ -959,87 +1084,137 @@ function handleAnnotationClick(annotation) {
     } else {
       store.selectAnnotation(annotation)
     }
-  } else {
-    // Para otras herramientas, mantener la funcionalidad original
-    selectAnnotation(annotation)
   }
 }
 
 function handleAnnotationDrag(annotation, event) {
   if (props.activeTool !== 'edit') return
   
-  // No mutamos la anotación aquí; el movimiento visual lo maneja Konva
+  const node = event.target
+  const currentPos = { x: node.x(), y: node.y() }
+  
+  // Para rectángulos (bbox), actualizar bbox en tiempo real para que los controles se muevan
+  if (annotation.bbox && (annotation.type === 'bbox' || !annotation.type)) {
+    const width = annotation.bbox[2]
+    const height = annotation.bbox[3]
+    const imageX = toImageX(currentPos.x)
+    const imageY = toImageY(currentPos.y)
+
+    const maxX = Math.max(0, imageBounds.value.width - width)
+    const maxY = Math.max(0, imageBounds.value.height - height)
+
+    const clampedX = clampValue(imageX, 0, maxX)
+    const clampedY = clampValue(imageY, 0, maxY)
+
+    // Actualizar bbox temporalmente para que los controles se muevan con el rectángulo
+    annotation.bbox[0] = clampedX
+    annotation.bbox[1] = clampedY
+
+    // Asegurar que la posición del nodo sea correcta
+    node.position({ x: toCanvasX(clampedX), y: toCanvasY(clampedY) })
+  }
+  // Para polígonos, solo verificar límites
+  else if (annotation.points && annotation.type === 'polygon') {
+    // Permitir movimiento libre del grupo
+    // La verificación de límites se hará en dragend
+  }
 }
 
 function handleAnnotationDragEnd(annotation, event) {
   if (props.activeTool !== 'edit') return
   
   const node = event.target
-  const currentPos = { x: node.x(), y: node.y() }
+  const groupPos = { x: node.x(), y: node.y() }
   
-  if (annotation.bbox) {
+  if (annotation.bbox && (annotation.type === 'bbox' || !annotation.type)) {
+    // Para rectángulos, ya actualizamos bbox durante el drag
+    // Solo necesitamos guardar en el store
     const width = annotation.bbox[2]
     const height = annotation.bbox[3]
-    const tentativeX = clampImageX(toImageX(currentPos.x))
-    const tentativeY = clampImageY(toImageY(currentPos.y))
+    const imageX = toImageX(groupPos.x)
+    const imageY = toImageY(groupPos.y)
 
     const maxX = Math.max(0, imageBounds.value.width - width)
     const maxY = Math.max(0, imageBounds.value.height - height)
 
-    const clampedX = clampValue(tentativeX, 0, maxX)
-    const clampedY = clampValue(tentativeY, 0, maxY)
+    const clampedX = clampValue(imageX, 0, maxX)
+    const clampedY = clampValue(imageY, 0, maxY)
 
-    if (clampedX !== annotation.bbox[0] || clampedY !== annotation.bbox[1]) {
-      const newBbox = [clampedX, clampedY, width, height]
-      annotation.bbox = newBbox
-      store.updateAnnotation(annotation._id, { bbox: newBbox })
+    const newBbox = [clampedX, clampedY, width, height]
+    annotation.bbox = newBbox
+    
+    // Guardar en el store
+    store.updateAnnotation(annotation._id, { bbox: newBbox })
+
+    // Asegurar posición final
+    node.position({ x: toCanvasX(clampedX), y: toCanvasY(clampedY) })
+    
+  } else if (annotation.points && annotation.type === 'polygon') {
+    // Ignorar dragend disparado por los manejadores hijos (puntos individuales)
+    if (event.target !== event.currentTarget) {
+      return
     }
 
-    node.position({ x: toCanvasX(clampedX), y: toCanvasY(clampedY) })
-  } else if (annotation.points && annotation.type === 'polygon') {
-    const originalPoints = annotation.points.map(point => [...point])
-    const xs = originalPoints.map(point => point[0])
-    const ys = originalPoints.map(point => point[1])
-
-    if (Math.abs(currentPos.x) < 0.01 && Math.abs(currentPos.y) < 0.01) {
+    // Actualiza las coordenadas de los puntos del polígono cuando su grupo cambia de posición.
+    // El desplazamiento se aplica en el sistema de coordenadas del canvas.
+    const deltaCanvasX = groupPos.x
+    const deltaCanvasY = groupPos.y
+    
+    // Convertir a coordenadas de imagen
+    const deltaImageX = deltaCanvasX / scale.value
+    const deltaImageY = deltaCanvasY / scale.value
+    
+    // Si el movimiento es muy pequeño, ignorar
+    if (Math.abs(deltaImageX) < 0.5 && Math.abs(deltaImageY) < 0.5) {
       node.position({ x: 0, y: 0 })
       return
     }
 
-    const rawMinDeltaX = -Math.min(...xs)
-    const rawMaxDeltaX = imageBounds.value.width - Math.max(...xs)
-    const rawMinDeltaY = -Math.min(...ys)
-    const rawMaxDeltaY = imageBounds.value.height - Math.max(...ys)
+    // Calcular nuevos puntos aplicando el desplazamiento
+    const newPoints = annotation.points.map(point => [
+      point[0] + deltaImageX,
+      point[1] + deltaImageY
+    ])
 
-    const minAllowedDeltaX = Math.min(rawMinDeltaX, rawMaxDeltaX)
-    const maxAllowedDeltaX = Math.max(rawMinDeltaX, rawMaxDeltaX)
-    const minAllowedDeltaY = Math.min(rawMinDeltaY, rawMaxDeltaY)
-    const maxAllowedDeltaY = Math.max(rawMinDeltaY, rawMaxDeltaY)
+    // Verificar límites
+    const xs = newPoints.map(point => point[0])
+    const ys = newPoints.map(point => point[1])
+    let minX = Math.min(...xs)
+    let minY = Math.min(...ys)
+    let maxX = Math.max(...xs)
+    let maxY = Math.max(...ys)
 
-    const clampedDeltaX = clampValue(currentPos.x, minAllowedDeltaX, maxAllowedDeltaX)
-    const clampedDeltaY = clampValue(currentPos.y, minAllowedDeltaY, maxAllowedDeltaY)
-
-    if (clampedDeltaX !== 0 || clampedDeltaY !== 0) {
-      const newPoints = originalPoints.map(point => [
-        point[0] + clampedDeltaX,
-        point[1] + clampedDeltaY
+    // Si se sale de límites, ajustar todos los puntos
+    let finalPoints = newPoints
+    if (minX < 0 || minY < 0 || maxX > imageBounds.value.width || maxY > imageBounds.value.height) {
+      const adjustX = Math.max(0, -minX) - Math.max(0, maxX - imageBounds.value.width)
+      const adjustY = Math.max(0, -minY) - Math.max(0, maxY - imageBounds.value.height)
+      
+      finalPoints = newPoints.map(point => [
+        point[0] + adjustX,
+        point[1] + adjustY
       ])
-
-      const newXs = newPoints.map(point => point[0])
-      const newYs = newPoints.map(point => point[1])
-      const minX = Math.min(...newXs)
-      const minY = Math.min(...newYs)
-      const maxX = Math.max(...newXs)
-      const maxY = Math.max(...newYs)
-
-      annotation.bbox = [minX, minY, maxX - minX, maxY - minY]
-      store.updateAnnotation(annotation._id, {
-        points: newPoints,
-        bbox: [minX, minY, maxX - minX, maxY - minY]
-      })
+      
+      // Recalcular límites
+      const adjXs = finalPoints.map(point => point[0])
+      const adjYs = finalPoints.map(point => point[1])
+      minX = Math.min(...adjXs)
+      minY = Math.min(...adjYs)
+      maxX = Math.max(...adjXs)
+      maxY = Math.max(...adjYs)
     }
 
-    // Resetear la posición del grupo a (0, 0)
+    // Actualizar anotación
+    annotation.points = finalPoints
+    annotation.bbox = [minX, minY, maxX - minX, maxY - minY]
+
+    // Guardar en el store
+    store.updateAnnotation(annotation._id, {
+      points: finalPoints,
+      bbox: annotation.bbox
+    })
+
+    // IMPORTANTE: Resetear la posición del grupo a (0, 0)
     node.position({ x: 0, y: 0 })
   }
 }
@@ -1200,6 +1375,137 @@ function handlePolygonPointDrag(annotation, pointIndex, event) {
     })
   }
 }
+
+// ==================== FUNCIONES PARA PREDICCIONES DE IA ====================
+
+function showPredictions(detections, categories) {
+  predictions.value = detections.map(detection => ({
+    bbox: detection.bbox,
+    class: detection.class,
+    confidence: detection.confidence
+  }))
+  predictionCategories.value = categories
+}
+
+function clearPredictions() {
+  predictions.value = []
+  predictionCategories.value = []
+  hoveredPrediction.value = null
+  selectedPrediction.value = null
+  predictionButtonHover.value = null
+}
+
+function getPredictionLabel(prediction) {
+  const className = predictionCategories.value[prediction.class] || `Clase ${prediction.class}`
+  const confidence = (prediction.confidence * 100).toFixed(1)
+  return `${className} (${confidence}%)`
+}
+
+function getPredictionLabelWidth(prediction) {
+  const label = getPredictionLabel(prediction)
+  // Estimación aproximada del ancho del texto (12px font size * 0.6 factor aproximado)
+  return Math.max(80, label.length * 7 + 10)
+}
+
+// Funciones para interacción con predicciones
+function handlePredictionClick(prediction, index) {
+  selectedPrediction.value = index
+  console.log('Predicción seleccionada:', prediction)
+}
+
+function handlePredictionMouseEnter(index) {
+  hoveredPrediction.value = index
+  // Cambiar cursor para indicar que es clickeable
+  document.body.style.cursor = 'pointer'
+}
+
+function handlePredictionMouseLeave() {
+  hoveredPrediction.value = null
+  // Restaurar cursor
+  document.body.style.cursor = 'default'
+}
+
+function acceptPrediction(prediction, index) {
+  console.log('Aceptando predicción:', prediction)
+  
+  // Verificar que hay una imagen actual
+  if (!store.currentImage) {
+    console.error('No hay imagen actual seleccionada')
+    return
+  }
+  
+
+  // Convertir predicción a anotación
+  const annotationData = {
+    type: 'bbox',
+    bbox: [...prediction.bbox], // Copiar bbox
+    category_id: getCurrentCategoryForPrediction(prediction),
+    confidence: prediction.confidence,
+    source: 'ai_prediction' // Marcar como originada de IA
+  }
+  
+  // Agregar la anotación usando el store
+  store.addAnnotation(store.currentImage._id, annotationData)
+    .then(() => {
+      console.log('Predicción convertida a anotación exitosamente')
+      
+      // Remover la predicción de la lista
+      predictions.value.splice(index, 1)
+      
+      // Limpiar selección
+      selectedPrediction.value = null
+      hoveredPrediction.value = null
+    })
+    .catch((error) => {
+      console.error('Error al convertir predicción a anotación:', error)
+    })
+}
+
+function rejectPrediction(index) {
+  console.log('Rechazando predicción en índice:', index)
+  
+  // Remover la predicción de la lista
+  predictions.value.splice(index, 1)
+  
+  // Limpiar selección
+  selectedPrediction.value = null
+  hoveredPrediction.value = null
+}
+
+function getCurrentCategoryForPrediction(prediction) {
+  // Buscar una categoría que coincida con la clase de la predicción
+  const className = predictionCategories.value[prediction.class]
+  if (className) {
+    // Buscar en las categorías del store una que tenga el mismo nombre
+    const matchingCategory = store.categories.find(cat => 
+      cat.name.toLowerCase() === className.toLowerCase()
+    )
+    if (matchingCategory) {
+      return matchingCategory.id
+    }
+  }
+  
+  // Si no se encuentra categoría coincidente, usar la categoría seleccionada actualmente
+  if (store.selectedCategory) {
+    return store.selectedCategory
+  }
+  
+  // Si no hay categoría seleccionada, usar la primera disponible
+  if (store.categories.length > 0) {
+    return store.categories[0].id
+  }
+  
+  // Si no hay categorías, retornar null (esto debería manejarse en la UI)
+  return null
+}
+
+// Exponer métodos para uso externo
+defineExpose({
+  showPredictions,
+  clearPredictions,
+  acceptPrediction,
+  rejectPrediction
+})
 </script>
 
 <style scoped>

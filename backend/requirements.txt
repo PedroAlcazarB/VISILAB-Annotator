@@ -4,3 +4,4 @@ watchdog
 flask-socketio
 Pillow
 pymongo
+ultralytics

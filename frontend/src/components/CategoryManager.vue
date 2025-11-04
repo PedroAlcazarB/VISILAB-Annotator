@@ -48,8 +48,11 @@
       </div>
       
       <div v-else-if="categories.length === 0" class="empty-state">
-        <p>No hay categorías disponibles</p>
-        <button @click="showAddForm = true" class="btn-primary">
+        <div class="empty-icon">📁</div>
+        <h4>No hay categorías disponibles</h4>
+        <p>Crea tu primera categoría para comenzar a anotar</p>
+        <button @click="showAddForm = true" class="btn-create-first">
+          <span class="icon">✨</span>
           Crear primera categoría
         </button>
       </div>
@@ -127,25 +130,30 @@
 
     <!-- Modal de edición -->
     <div v-if="editingCategory" class="modal-overlay" @click="cancelEdit">
-      <div class="modal-content" @click.stop>
-        <h4>Editar Categoría</h4>
-        <div class="form-group">
-          <label>Nombre:</label>
-          <input 
-            v-model="editingCategory.name" 
-            type="text" 
-            class="form-input"
-          >
+      <div class="modal-content modal-edit" @click.stop>
+        <div class="modal-header">
+          <h3>Editar Categoría</h3>
+          <button @click="cancelEdit" class="btn-close">&times;</button>
         </div>
-        <div class="form-group">
-          <label>Color:</label>
-          <input 
-            v-model="editingCategory.color" 
-            type="color" 
-            class="form-color"
-          >
+        <div class="modal-body">
+          <div class="form-group">
+            <label>Nombre:</label>
+            <input 
+              v-model="editingCategory.name" 
+              type="text" 
+              class="form-input"
+            >
+          </div>
+          <div class="form-group">
+            <label>Color:</label>
+            <input 
+              v-model="editingCategory.color" 
+              type="color" 
+              class="form-color"
+            >
+          </div>
         </div>
-        <div class="form-actions">
+        <div class="modal-footer">
           <button @click="saveEdit" class="btn-success">Guardar</button>
           <button @click="cancelEdit" class="btn-secondary">Cancelar</button>
         </div>
@@ -747,30 +755,86 @@ watch(showImportModal, (newValue) => {
   background: rgba(0, 0, 0, 0.1);
 }
 
+/* ==================== ESTILOS PARA MODALES ==================== */
 .modal-overlay {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
+  background: rgba(0, 0, 0, 0.6);
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 1000;
+  z-index: 2000;
 }
 
 .modal-content {
   background: white;
-  border-radius: 8px;
-  padding: 2rem;
-  min-width: 300px;
-  max-width: 500px;
+  border-radius: 12px;
+  padding: 0;
+  min-width: 400px;
+  max-width: 600px;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
 }
 
-.modal-content h4 {
-  margin: 0 0 1rem 0;
+/* Modal específico para edición de categoría */
+.modal-edit {
+  min-width: 350px;
+  max-width: 450px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.modal-header h3 {
+  margin: 0;
   color: #2c3e50;
+  font-size: 1.3rem;
+}
+
+.modal-body {
+  padding: 1.5rem;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  border-top: 1px solid #e0e0e0;
+  background: #f8f9fa;
+}
+
+.btn-close {
+  background: transparent;
+  border: none;
+  font-size: 1.8rem;
+  cursor: pointer;
+  color: #666;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: background 0.3s;
+}
+
+.btn-close:hover {
+  background: #f0f0f0;
+  color: #333;
 }
 
 .current-selection {
@@ -854,73 +918,7 @@ watch(showImportModal, (newValue) => {
   transform: translateY(0);
 }
 
-/* Estilos para modal de importación */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 2000;
-}
-
-.modal-content {
-  background: white;
-  border-radius: 12px;
-  padding: 0;
-  min-width: 500px;
-  max-width: 600px;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 1.5rem;
-  border-bottom: 1px solid #e0e0e0;
-}
-
-.modal-header h3 {
-  margin: 0;
-  color: #2c3e50;
-  font-size: 1.3rem;
-}
-
-.btn-close {
-  background: transparent;
-  border: none;
-  font-size: 1.8rem;
-  cursor: pointer;
-  color: #666;
-  padding: 0;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: background 0.3s;
-}
-
-.btn-close:hover {
-  background: #f0f0f0;
-  color: #333;
-}
-
-.modal-body {
-  padding: 1.5rem;
-  overflow-y: auto;
-  flex: 1;
-}
-
+/* ==================== ESTILOS ESPECÍFICOS PARA MODAL DE IMPORTACIÓN ==================== */
 .modal-description {
   margin: 0 0 1rem 0;
   color: #666;
@@ -984,17 +982,73 @@ watch(showImportModal, (newValue) => {
   font-style: italic;
 }
 
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 0.75rem;
-  padding: 1.5rem;
-  border-top: 1px solid #e0e0e0;
-}
-
 .loading-state, .empty-state {
   text-align: center;
-  padding: 2rem;
+  padding: 3rem 2rem;
   color: #7f8c8d;
+}
+
+.empty-state {
+  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+  border: 2px dashed #e0e6ed;
+  border-radius: 12px;
+  margin: 1rem 0;
+}
+
+.empty-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+  opacity: 0.7;
+}
+
+.empty-state h4 {
+  color: #2c3e50;
+  margin: 0 0 0.5rem 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+}
+
+.empty-state p {
+  color: #7f8c8d;
+  margin: 0 0 2rem 0;
+  font-size: 0.95rem;
+}
+
+.btn-create-first {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  padding: 1rem 2rem;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-create-first:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+  background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
+}
+
+.btn-create-first:active {
+  transform: translateY(-1px);
+}
+
+.btn-create-first .icon {
+  font-size: 1.1rem;
+  animation: sparkle 2s infinite;
+}
+
+@keyframes sparkle {
+  0%, 100% { transform: scale(1) rotate(0deg); }
+  50% { transform: scale(1.1) rotate(10deg); }
 }
 </style>

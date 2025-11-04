@@ -371,6 +371,23 @@ def create_annotation():
         
         db = get_db()
         
+        # Obtener información de la imagen para verificar el dataset
+        image_doc = db.images.find_one({'_id': ObjectId(data['image_id'])})
+        if not image_doc:
+            return jsonify({'error': 'Imagen no encontrada'}), 404
+        
+        dataset_id = image_doc.get('dataset_id')
+        if not dataset_id:
+            return jsonify({'error': 'La imagen debe pertenecer a un dataset'}), 400
+        
+        # Verificar que existan categorías en el dataset antes de permitir anotaciones
+        categories_count = db.categories.count_documents({'dataset_id': dataset_id})
+        if categories_count == 0:
+            return jsonify({
+                'error': 'No se pueden crear anotaciones sin categorías. Primero debe crear al menos una categoría para este dataset.',
+                'code': 'NO_CATEGORIES_AVAILABLE'
+            }), 400
+        
         # Calcular área si hay bbox
         bbox = data.get('bbox')
         area = 0
@@ -392,6 +409,9 @@ def create_annotation():
             'fill': data.get('fill', 'rgba(0,255,0,0.2)'),
             'closed': data.get('closed', False),
             'center': data.get('center'),
+            'source': data.get('source', 'manual'),  # manual, ai_prediction, imported
+            'confidence': data.get('confidence'),  # Solo para predicciones de IA
+            'model_name': data.get('model_name'),  # Solo para predicciones de IA
             'created_date': datetime.utcnow(),
             'modified_date': datetime.utcnow()
         }
@@ -831,6 +851,31 @@ def get_categories_data():
         
     except Exception as e:
         return jsonify({'error': f'Error al obtener datos de categorías: {str(e)}'}), 500
+
+@app.route('/api/categories/check/<dataset_id>', methods=['GET'])
+def check_categories_availability(dataset_id):
+    """Verificar si un dataset tiene categorías disponibles"""
+    try:
+        db = get_db()
+        
+        # Contar categorías en el dataset
+        categories_count = db.categories.count_documents({'dataset_id': dataset_id})
+        
+        # Obtener lista de categorías si existen
+        categories = []
+        if categories_count > 0:
+            categories_list = list(db.categories.find({'dataset_id': dataset_id}))
+            categories = [serialize_doc(cat) for cat in categories_list]
+        
+        return jsonify({
+            'has_categories': categories_count > 0,
+            'total_categories': categories_count,
+            'categories': categories,
+            'can_annotate': categories_count > 0
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al verificar categorías: {str(e)}'}), 500
 
 # ==================== ENDPOINTS PARA DATASETS ====================
 
@@ -2373,6 +2418,598 @@ def export_pascal_format(dataset, images, annotations, categories, include_image
         if os.path.exists(temp_zip.name):
             os.unlink(temp_zip.name)
         raise e
+
+# ==================== RUTAS PARA HERRAMIENTAS DE IA ====================
+
+import yaml
+import shutil
+
+# Variable global para almacenar el modelo cargado
+loaded_model = None
+model_name = None
+model_categories = []
+
+# Directorio permanente para modelos guardados
+MODELS_DIR = os.path.join(os.getcwd(), 'ai_models')
+os.makedirs(MODELS_DIR, exist_ok=True)
+
+def _generate_color_not_in_set(used_colors_set):
+    """
+    Genera un color único que NO está en el set proporcionado.
+    
+    Args:
+        used_colors_set: Un set de colores (en mayúsculas) que ya están en uso.
+    
+    Returns:
+        String con el color en formato hexadecimal.
+    """
+    # Lista extendida de colores predefinidos
+    predefined_colors = [
+        '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', 
+        '#98D8C8', '#F7DC6F', '#BB8FCE', '#85C1E9', '#F8B500', '#FF69B4',
+        '#32CD32', '#FF4500', '#8A2BE2', '#00CED1', '#FFD700', '#DC143C',
+        '#00FF7F', '#FF1493', '#1E90FF', '#FF8C00', '#9370DB', '#00FA9A',
+        '#FF6347', '#40E0D0', '#DA70D6', '#00BFFF', '#FFA500', '#BA55D3',
+        '#7FFF00', '#FF69B4', '#6495ED', '#FF7F50', '#9932CC', '#00FFFF'
+    ]
+    
+    # 1. Buscar un color disponible de la lista predefinida
+    for color in predefined_colors:
+        if color.upper() not in used_colors_set:
+            return color # Devuelve el color
+    
+    # 2. Si todos están en uso, generar uno aleatorio único
+    import random
+    import colorsys
+    
+    max_attempts = 100
+    for _ in range(max_attempts):
+        hue = random.random()
+        saturation = 0.7 + random.random() * 0.3 # Entre 0.7 y 1.0
+        value = 0.8 + random.random() * 0.2      # Entre 0.8 y 1.0
+        
+        rgb = colorsys.hsv_to_rgb(hue, saturation, value)
+        hex_color = '#%02X%02X%02X' % (int(rgb[0] * 255), int(rgb[1] * 255), int(rgb[2] * 255))
+        
+        if hex_color.upper() not in used_colors_set:
+            return hex_color
+    
+    # 3. Como último recurso, usar un color base con timestamp
+    import time
+    timestamp = int(time.time()) % 1000000
+    fallback_color = f'#{timestamp:06X}'
+    
+    # Asegurarse de que incluso el fallback sea único
+    while fallback_color.upper() in used_colors_set:
+        timestamp += 1
+        fallback_color = f'#{(timestamp % 1000000):06X}'
+        
+    return fallback_color
+
+def ensure_model_categories_exist(dataset_id, model_categories):
+    """
+    Asegurar que las categorías del modelo existan en la base de datos.
+    Si no existen, las crea automáticamente con colores únicos.
+    (Versión corregida para evitar colores duplicados en la misma ejecución)
+    
+    Args:
+        dataset_id: ID del dataset
+        model_categories: Lista de nombres de categorías del modelo
+        
+    Returns:
+        Lista de categorías creadas
+    """
+    db = get_db()
+    created_categories = []
+    
+    # 1. Obtener TODAS las categorías existentes y sus colores de UNA SOLA VEZ
+    existing_categories_list = list(db.categories.find({'dataset_id': dataset_id}))
+    
+    # 2. Crear un mapa de nombres para búsquedas rápidas en memoria
+    existing_names_map = {cat['name']: cat for cat in existing_categories_list}
+    
+    # 3. Crear un set de colores ya en uso (normalizados a mayúsculas)
+    used_colors = set()
+    for cat in existing_categories_list:
+        if 'color' in cat and cat['color']:
+            used_colors.add(cat['color'].upper())
+    
+    print(f"Colores ya en uso para dataset {dataset_id}: {used_colors}")
+
+    # 4. Iterar sobre las categorías del modelo
+    for category_name in model_categories:
+        
+        # 5. Verificar si ya existe usando el mapa en memoria
+        if category_name not in existing_names_map:
+            
+            # 6. Generar un color único usando el set actualizado
+            # (Usamos la NUEVA función auxiliar)
+            color = _generate_color_not_in_set(used_colors)
+            
+            # 7. AÑADIR el nuevo color al set INMEDIATAMENTE
+            # Esto es clave para que la siguiente iteración no lo repita
+            used_colors.add(color.upper())
+            
+            print(f"Generando nueva categoría '{category_name}' con color {color}")
+            
+            # Crear nueva categoría
+            category_doc = {
+                'name': category_name,
+                'color': color,
+                'dataset_id': dataset_id,
+                'created_date': datetime.utcnow(),
+                'creator': 'ai_model' # Marcar que fue creada por un modelo de IA
+            }
+            
+            result = db.categories.insert_one(category_doc)
+            category_doc['_id'] = str(result.inserted_id)
+            created_categories.append(category_doc)
+            
+            # 8. (Opcional pero recomendado) Añadir la categoría recién creada al mapa
+            # para evitar que se cree de nuevo si el nombre está duplicado
+            # en la lista `model_categories`
+            existing_names_map[category_name] = category_doc
+    
+    return created_categories
+
+def get_category_mapping(dataset_id, model_categories):
+    """
+    Obtener el mapeo entre índices de categorías del modelo y IDs de categorías en la base de datos.
+    
+    Args:
+        dataset_id: ID del dataset
+        model_categories: Lista de nombres de categorías del modelo
+        
+    Returns:
+        Dict con mapeo {índice_modelo: categoria_id_db}
+    """
+    db = get_db()
+    mapping = {}
+    
+    for idx, category_name in enumerate(model_categories):
+        category = db.categories.find_one({
+            'name': category_name,
+            'dataset_id': dataset_id
+        })
+        
+        if category:
+            mapping[idx] = str(category['_id'])
+    
+    return mapping
+
+@app.route('/api/ai/saved-models', methods=['GET'])
+def get_saved_models():
+    """Obtener lista de modelos guardados"""
+    try:
+        db = get_db()
+        models = list(db.ai_models.find())
+        
+        for model in models:
+            model['_id'] = str(model['_id'])
+            model['id'] = model['_id']
+        
+        return jsonify({
+            'success': True,
+            'models': models
+        })
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener modelos: {str(e)}'}), 500
+
+@app.route('/api/ai/load-saved-model', methods=['POST'])
+def load_saved_model():
+    """Cargar un modelo previamente guardado y crear sus categorías en el dataset"""
+    global loaded_model, model_name, model_categories
+    
+    try:
+        data = request.get_json()
+        model_id = data.get('model_id')
+        dataset_id = data.get('dataset_id')  # Dataset ID para crear categorías
+        
+        if not model_id:
+            return jsonify({'error': 'ID de modelo requerido'}), 400
+        
+        # Importar YOLO solo cuando sea necesario
+        from ultralytics import YOLO
+        
+        db = get_db()
+        model_doc = db.ai_models.find_one({'_id': ObjectId(model_id)})
+        
+        if not model_doc:
+            return jsonify({'error': 'Modelo no encontrado'}), 404
+        
+        # Cargar el modelo desde el archivo guardado
+        model_path = model_doc['file_path']
+        if not os.path.exists(model_path):
+            return jsonify({'error': 'Archivo de modelo no encontrado'}), 404
+        
+        loaded_model = YOLO(model_path)
+        model_name = model_doc['name']
+        model_categories = model_doc['categories']
+        
+        # Crear categorías del modelo en el dataset si se proporciona dataset_id
+        created_categories = []
+        if dataset_id:
+            created_categories = ensure_model_categories_exist(dataset_id, model_categories)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Modelo "{model_name}" cargado exitosamente',
+            'categories': model_categories,
+            'created_categories': [serialize_doc(cat) for cat in created_categories],
+            'model_info': {
+                'id': str(model_doc['_id']),
+                'name': model_doc['name'],
+                'description': model_doc.get('description', ''),
+                'created_at': model_doc.get('created_at', '')
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error al cargar modelo guardado: {e}")
+        return jsonify({'error': f'Error al cargar modelo: {str(e)}'}), 500
+
+@app.route('/api/ai/load-model', methods=['POST'])
+def load_ai_model():
+    """Cargar un modelo YOLO para inferencia y guardarlo en la base de datos"""
+    global loaded_model, model_name, model_categories
+    
+    try:
+        # Importar YOLO solo cuando sea necesario
+        from ultralytics import YOLO
+        
+        # Verificar que se envió un archivo de modelo
+        if 'model_file' not in request.files:
+            return jsonify({'error': 'No se encontró archivo de modelo'}), 400
+        
+        model_file = request.files['model_file']
+        if model_file.filename == '':
+            return jsonify({'error': 'No se seleccionó archivo de modelo'}), 400
+        
+        # Obtener información del formulario
+        submitted_name = request.form.get('model_name', 'Modelo sin nombre')
+        description = request.form.get('description', f'Modelo {submitted_name}')
+        dataset_id = request.form.get('dataset_id')  # Dataset ID opcional para crear categorías
+        
+        # Crear directorio permanente para este modelo
+        import uuid
+        model_uuid = str(uuid.uuid4())
+        model_dir = os.path.join(MODELS_DIR, model_uuid)
+        os.makedirs(model_dir, exist_ok=True)
+        
+        # Guardar archivo del modelo permanentemente
+        model_filename = f"{submitted_name.replace(' ', '_')}.pt"
+        permanent_model_path = os.path.join(model_dir, model_filename)
+        model_file.save(permanent_model_path)
+        
+        # Cargar el modelo YOLO para obtener información
+        loaded_model = YOLO(permanent_model_path)
+        model_name = submitted_name
+        
+        # Intentar cargar categorías desde archivo YAML si se proporciona
+        yaml_path = None
+        model_categories = []
+        
+        if 'yaml_file' in request.files and request.files['yaml_file'].filename != '':
+            yaml_file = request.files['yaml_file']
+            yaml_path = os.path.join(model_dir, 'config.yaml')
+            yaml_file.save(yaml_path)
+            
+            try:
+                with open(yaml_path, 'r') as f:
+                    yaml_data = yaml.safe_load(f)
+                    if 'names' in yaml_data:
+                        model_categories = list(yaml_data['names'].values()) if isinstance(yaml_data['names'], dict) else yaml_data['names']
+                    else:
+                        model_categories = []
+            except Exception as e:
+                print(f"Error al leer archivo YAML: {e}")
+                model_categories = []
+        
+        # Si aún no hay categorías, intentar obtenerlas del modelo
+        if not model_categories:
+            try:
+                # Algunos modelos YOLO tienen información de clases
+                if hasattr(loaded_model, 'names'):
+                    model_categories = list(loaded_model.names.values())
+                else:
+                    # Intentar determinar el número de clases del modelo
+                    num_classes = getattr(loaded_model.model, 'nc', None) if hasattr(loaded_model, 'model') else None
+                    if num_classes:
+                        model_categories = [f'Clase_{i}' for i in range(num_classes)]
+                    else:
+                        # Si no se puede determinar, usar una clase genérica
+                        model_categories = ['Objeto_detectado']
+            except Exception as e:
+                print(f"Error al obtener categorías del modelo: {e}")
+                # Fallback genérico sin asumir tipo de modelo
+                model_categories = ['Objeto_detectado']
+        
+        # Guardar información del modelo en la base de datos
+        db = get_db()
+        model_doc = {
+            'name': submitted_name,
+            'description': description,
+            'file_path': permanent_model_path,
+            'yaml_path': yaml_path,
+            'categories': model_categories,
+            'uuid': model_uuid,
+            'created_at': datetime.now().isoformat(),
+            'file_size': os.path.getsize(permanent_model_path),
+            'original_filename': model_file.filename
+        }
+        
+        result = db.ai_models.insert_one(model_doc)
+        model_doc['_id'] = str(result.inserted_id)
+        
+        # Crear categorías del modelo en el dataset si se proporciona dataset_id
+        created_categories = []
+        if dataset_id:
+            created_categories = ensure_model_categories_exist(dataset_id, model_categories)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Modelo "{model_name}" cargado y guardado exitosamente',
+            'categories': model_categories,
+            'created_categories': [serialize_doc(cat) for cat in created_categories],
+            'model_info': {
+                'id': str(result.inserted_id),
+                'name': submitted_name,
+                'description': description,
+                'uuid': model_uuid
+            }
+        })
+        
+    except Exception as e:
+        print(f"Error al cargar modelo: {e}")
+        # Limpiar archivos si hubo error
+        try:
+            if 'model_dir' in locals() and os.path.exists(model_dir):
+                shutil.rmtree(model_dir)
+        except:
+            pass
+        
+        loaded_model = None
+        model_name = None
+        model_categories = []
+        return jsonify({'error': f'Error al cargar el modelo: {str(e)}'}), 500
+
+@app.route('/api/ai/unload-model', methods=['POST'])
+def unload_ai_model():
+    """Descargar el modelo actual"""
+    global loaded_model, model_name, model_categories
+    
+    try:
+        loaded_model = None
+        model_name = None
+        model_categories = []
+        
+        # Limpiar archivos temporales
+        temp_dir = '/tmp/ai_models'
+        if os.path.exists(temp_dir):
+            import shutil
+            shutil.rmtree(temp_dir)
+        
+        return jsonify({'success': True, 'message': 'Modelo descargado exitosamente'})
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al descargar modelo: {str(e)}'}), 500
+
+@app.route('/api/ai/predict', methods=['POST'])
+def predict_image():
+    """Realizar predicción en una imagen usando el modelo cargado"""
+    global loaded_model, model_categories
+    
+    try:
+        if loaded_model is None:
+            return jsonify({'error': 'No hay modelo cargado'}), 400
+        
+        data = request.get_json()
+        image_id = data.get('image_id')
+        confidence = data.get('confidence', 0.5)
+        
+        if not image_id:
+            return jsonify({'error': 'ID de imagen requerido'}), 400
+        
+        # Obtener imagen de la base de datos
+        db = get_db()
+        image_doc = db.images.find_one({'_id': ObjectId(image_id)})
+        
+        if not image_doc:
+            return jsonify({'error': 'Imagen no encontrada'}), 404
+        
+        # Verificar que la imagen tenga dataset_id
+        dataset_id = image_doc.get('dataset_id')
+        if not dataset_id:
+            return jsonify({'error': 'La imagen debe pertenecer a un dataset para realizar predicciones'}), 400
+        
+        # Crear automáticamente las categorías del modelo si no existen
+        created_categories = ensure_model_categories_exist(dataset_id, model_categories)
+        
+        # Obtener el mapeo de categorías del modelo a IDs de base de datos
+        category_mapping = get_category_mapping(dataset_id, model_categories)
+        
+        # Crear imagen PIL desde los datos
+        image_data = None
+        if 'data' in image_doc:
+            # Los datos pueden estar en formato base64 o como bytes
+            data = image_doc['data']
+            if isinstance(data, str):
+                # Si es string, podría ser base64
+                try:
+                    image_data = base64.b64decode(data)
+                except:
+                    return jsonify({'error': 'Formato de imagen inválido en base de datos'}), 400
+            else:
+                # Si ya son bytes
+                image_data = data
+        else:
+            # Si la imagen está en el sistema de archivos
+            image_path = os.path.join('/app/images', image_doc.get('path', ''))
+            if not os.path.exists(image_path):
+                return jsonify({'error': 'Archivo de imagen no encontrado'}), 404
+            
+            with open(image_path, 'rb') as f:
+                image_data = f.read()
+        
+        if image_data is None:
+            return jsonify({'error': 'No se pudieron obtener los datos de la imagen'}), 400
+        
+        # Convertir a imagen PIL
+        try:
+            image = Image.open(io.BytesIO(image_data))
+            # Asegurar que la imagen esté en modo RGB
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+        except Exception as e:
+            return jsonify({'error': f'Error al procesar la imagen: {str(e)}'}), 400
+        
+        # Realizar predicción
+        try:
+            print(f"Realizando predicción con confianza: {confidence}")
+            results = loaded_model(image, conf=confidence)
+            print(f"Predicción completada, {len(results)} resultados obtenidos")
+        except Exception as e:
+            print(f"Error durante la predicción: {e}")
+            return jsonify({'error': f'Error durante la predicción: {str(e)}'}), 500
+        
+        # Procesar resultados y guardar como anotaciones
+        detections = []
+        created_annotations = []
+        
+        if len(results) > 0:
+            result = results[0]  # Tomar el primer resultado
+            print(f"Procesando resultado: {type(result)}")
+            
+            if result.boxes is not None:
+                boxes = result.boxes
+                print(f"Encontradas {len(boxes)} cajas")
+                
+                for i in range(len(boxes)):
+                    try:
+                        # Obtener coordenadas del bounding box (xyxy format)
+                        box = boxes.xyxy[i].cpu().numpy()
+                        conf = boxes.conf[i].cpu().numpy()
+                        cls = int(boxes.cls[i].cpu().numpy())
+                        
+                        # Convertir a formato [x, y, width, height]
+                        x1, y1, x2, y2 = box
+                        bbox = [float(x1), float(y1), float(x2 - x1), float(y2 - y1)]
+                        
+                        # Obtener el ID de categoría correspondiente
+                        category_id = category_mapping.get(cls)
+                        category_name = model_categories[cls] if cls < len(model_categories) else f'Clase {cls}'
+                        
+                        if not category_id:
+                            print(f"No se encontró categoría para clase {cls}, saltando detección")
+                            continue
+                        
+                        detection = {
+                            'bbox': bbox,
+                            'confidence': float(conf),
+                            'class': cls,
+                            'category_id': category_id,
+                            'category_name': category_name
+                        }
+                        
+                        # Crear anotación en la base de datos
+                        annotation_doc = {
+                            'image_id': image_id,
+                            'type': 'bbox',
+                            'category': category_name,
+                            'category_id': category_id,
+                            'bbox': bbox,
+                            'area': bbox[2] * bbox[3],  # width * height
+                            'stroke': '#00ff00',  # Color por defecto para predicciones
+                            'strokeWidth': 2,
+                            'fill': 'rgba(0,255,0,0.2)',
+                            'confidence': float(conf),
+                            'source': 'ai_prediction',  # Marcar como predicción de IA
+                            'model_name': model_name,
+                            'created_date': datetime.utcnow(),
+                            'modified_date': datetime.utcnow()
+                        }
+                        
+                        # Insertar anotación en MongoDB
+                        annotation_result = db.annotations.insert_one(annotation_doc)
+                        annotation_doc['_id'] = str(annotation_result.inserted_id)
+                        created_annotations.append(serialize_doc(annotation_doc))
+                        
+                        print(f"Detección {i}: clase={cls} ({category_name}), confianza={conf:.3f}, bbox={bbox}, anotación creada con ID={annotation_doc['_id']}")
+                        detections.append(detection)
+                        
+                    except Exception as e:
+                        print(f"Error procesando detección {i}: {e}")
+                        continue
+            else:
+                print("No se encontraron boxes en el resultado")
+        
+        return jsonify({
+            'success': True,
+            'detections': detections,
+            'annotations': created_annotations,
+            'model_name': model_name,
+            'categories': model_categories,
+            'created_categories': [serialize_doc(cat) for cat in created_categories],
+            'total_detections': len(detections),
+            'total_annotations_created': len(created_annotations),
+            'message': f'Predicción completada. Se crearon {len(created_annotations)} anotaciones de {len(detections)} detecciones.'
+        })
+        
+    except Exception as e:
+        print(f"Error en predicción: {e}")
+        return jsonify({'error': f'Error en la predicción: {str(e)}'}), 500
+
+@app.route('/api/ai/model-status', methods=['GET'])
+def get_model_status():
+    """Obtener estado actual del modelo"""
+    global loaded_model, model_name, model_categories
+    
+    return jsonify({
+        'is_loaded': loaded_model is not None,
+        'model_name': model_name,
+        'categories': model_categories
+    })
+
+@app.route('/api/ai/test-image', methods=['POST'])
+def test_image_processing():
+    """Endpoint para probar el procesamiento de imágenes sin predicción"""
+    try:
+        data = request.get_json()
+        image_id = data.get('image_id')
+        
+        if not image_id:
+            return jsonify({'error': 'ID de imagen requerido'}), 400
+        
+        # Obtener imagen de la base de datos
+        db = get_db()
+        image_doc = db.images.find_one({'_id': ObjectId(image_id)})
+        
+        if not image_doc:
+            return jsonify({'error': 'Imagen no encontrada'}), 404
+        
+        # Información de debug sobre la imagen
+        info = {
+            'has_data_field': 'data' in image_doc,
+            'has_path_field': 'path' in image_doc,
+            'filename': image_doc.get('filename', 'Unknown'),
+            'data_type': str(type(image_doc.get('data', None))),
+        }
+        
+        if 'data' in image_doc:
+            data_field = image_doc['data']
+            if isinstance(data_field, str):
+                info['data_length'] = len(data_field)
+                info['data_sample'] = data_field[:50] + '...' if len(data_field) > 50 else data_field
+            else:
+                info['data_length'] = len(data_field) if hasattr(data_field, '__len__') else 'Unknown'
+        
+        return jsonify({
+            'success': True,
+            'image_info': info
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al procesar imagen: {str(e)}'}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

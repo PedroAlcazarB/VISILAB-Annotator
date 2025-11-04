@@ -144,11 +144,24 @@
         <!-- Canvas principal -->
         <div class="annotator-canvas">
           <AnnotationsCanvas 
+            ref="annotationsCanvas"
             :image-url="`http://localhost:5000/api/images/${selectedImage._id}/data`"
             :image-id="selectedImage._id"
             :active-tool="store.activeTool"
             :tool-settings="store.toolSettings"
             @annotation-saved="handleAnnotationSaved"
+          />
+        </div>
+        
+        <!-- Panel lateral derecho - Herramientas de IA -->
+        <div class="annotator-ai-sidebar">
+          <AITools 
+            :current-image="selectedImage"
+            :dataset-id="dataset._id"
+            @model-loaded="handleModelLoaded"
+            @model-unloaded="handleModelUnloaded"
+            @annotations-updated="handleAnnotationsUpdated"
+            @navigate-to-image="handleNavigateToImage"
           />
         </div>
       </div>
@@ -163,6 +176,7 @@ import ExportAnnotations from '../components/ExportAnnotations.vue'
 import AnnotationsCanvas from '../components/AnnotationsCanvas.vue'
 import AnnotationToolbar from '../components/AnnotationToolbar.vue'
 import CategoryManager from '../components/CategoryManager.vue'
+import AITools from '../components/AITools.vue'
 import { useAnnotationStore } from '../stores/annotationStore'
 
 export default {
@@ -173,7 +187,8 @@ export default {
     ExportAnnotations,
     AnnotationsCanvas,
     AnnotationToolbar,
-    CategoryManager
+    CategoryManager,
+    AITools
   },
   props: {
     dataset: {
@@ -338,6 +353,48 @@ export default {
     
     goBack() {
       this.$emit('go-back')
+    },
+    
+    // Métodos para herramientas de IA
+    handleModelLoaded(modelInfo) {
+      console.log('Model loaded:', modelInfo)
+      // Aquí puedes agregar lógica adicional cuando se carga un modelo
+    },
+    
+    handleModelUnloaded() {
+      console.log('Model unloaded')
+      // Limpiar cualquier visualización de predicciones
+      if (this.$refs.annotationsCanvas) {
+        this.$refs.annotationsCanvas.clearPredictions()
+      }
+    },
+    
+    handleAnnotationsUpdated(updateData) {
+      console.log('Annotations updated from AI prediction:', updateData)
+      
+      // Refrescar las anotaciones en el store para la imagen actual
+      if (this.selectedImage) {
+        this.store.loadAnnotations(this.selectedImage._id)
+      }
+      
+      // Si se crearon categorías nuevas, refrescar las categorías
+      if (updateData.created_categories && updateData.created_categories.length > 0) {
+        this.store.loadCategories(this.dataset._id)
+      }
+      
+      // Mostrar mensaje de éxito si está disponible
+      if (updateData.message) {
+        console.log(updateData.message)
+        // Opcional: mostrar una notificación toast aquí
+      }
+    },
+    
+    async handleNavigateToImage(image) {
+      // Cambiar a la nueva imagen
+      await this.openAnnotator(image)
+      
+      // Limpiar predicciones si la predicción automática está deshabilitada
+      // (el componente AITools se encargará de esto a través de su watcher)
     }
   }
 }
@@ -711,5 +768,13 @@ export default {
   align-items: center;
   justify-content: center;
   overflow: hidden;
+}
+
+.annotator-ai-sidebar {
+  width: 350px;
+  background: #f8f9fa;
+  border-left: 1px solid #dee2e6;
+  overflow-y: auto;
+  flex-shrink: 0;
 }
 </style>

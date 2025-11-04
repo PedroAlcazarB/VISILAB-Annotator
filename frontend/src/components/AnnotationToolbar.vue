@@ -115,69 +115,17 @@
       
       <!-- BBox Settings -->
       <div v-if="activeTool === 'bbox'" class="settings-group">
-        <label>
-          <input 
-            type="checkbox" 
-            v-model="toolSettings.bbox.autoColor"
-          />
-          Color automático
-        </label>
-        <div class="setting-item">
-          <label>Color del trazo:</label>
-          <input 
-            type="color" 
-            v-model="toolSettings.bbox.strokeColor"
-            class="color-input"
-          />
-        </div>
+        <!-- Configuraciones eliminadas: el color viene determinado por la categoría -->
       </div>
 
       <!-- Polygon Settings -->
       <div v-if="activeTool === 'polygon'" class="settings-group">
-        <div class="setting-item">
-          <label>Distancia mínima:</label>
-          <input 
-            type="range" 
-            min="1" 
-            max="20" 
-            v-model="toolSettings.polygon.minDistance"
-            class="range-input"
-          />
-          <span>{{ toolSettings.polygon.minDistance }}px</span>
-        </div>
-        <div class="setting-item">
-          <label>Distancia de completado:</label>
-          <input 
-            type="range" 
-            min="5" 
-            max="50" 
-            v-model="toolSettings.polygon.completeDistance"
-            class="range-input"
-          />
-          <span>{{ toolSettings.polygon.completeDistance }}px</span>
-        </div>
-        <label>
-          <input 
-            type="checkbox" 
-            v-model="toolSettings.polygon.guidance"
-          />
-          Mostrar guía
-        </label>
+        <!-- Settings eliminados: ya no son necesarios -->
       </div>
 
       <!-- Eraser Settings -->
       <div v-if="activeTool === 'eraser'" class="settings-group">
-        <div class="setting-item">
-          <label>Tamaño del borrador:</label>
-          <input 
-            type="range" 
-            min="1" 
-            max="100" 
-            v-model="toolSettings.eraser.radius"
-            class="range-input"
-          />
-          <span>{{ toolSettings.eraser.radius }}px</span>
-        </div>
+        <!-- Configuración de tamaño eliminada: no es necesaria -->
       </div>
     </div>
 
@@ -251,6 +199,23 @@ const canUndo = computed(() => {
 
 // Métodos
 const setActiveTool = (tool) => {
+  // Herramientas que requieren categorías para funcionar
+  const annotationTools = ['bbox', 'polygon', 'brush', 'keypoints']
+  
+  if (annotationTools.includes(tool)) {
+    // Verificar que existan categorías antes de permitir herramientas de anotación
+    if (!annotationStore.categories || annotationStore.categories.length === 0) {
+      alert('No se pueden usar herramientas de anotación sin categorías. Primero debe crear al menos una categoría para este dataset.')
+      return
+    }
+    
+    // Verificar que haya una categoría seleccionada
+    if (!annotationStore.selectedCategory) {
+      alert('Debe seleccionar una categoría antes de crear anotaciones.')
+      return
+    }
+  }
+  
   annotationStore.setActiveTool(tool)
   // Emitir evento para el canvas
   emit('tool-changed', {
