@@ -158,16 +158,6 @@
         {{ isPredicting ? 'Prediciendo...' : 'Predecir Imagen' }}
       </button>
       
-      <!-- Botón para limpiar predicciones -->
-      <button 
-        v-if="lastPrediction"
-        @click="clearPredictions"
-        class="btn btn-outline"
-      >
-        <i class="fas fa-eraser"></i>
-        Limpiar Predicciones
-      </button>
-      
       <!-- Resultados de predicción -->
       <div v-if="lastPrediction" class="prediction-results">
         <h5>Últimos resultados:</h5>
@@ -307,9 +297,6 @@ export default {
             setTimeout(() => {
               this.predictImage()
             }, 500)
-          } else {
-            // Si la predicción automática está deshabilitada, limpiar predicciones anteriores
-            this.lastPrediction = null
           }
         }
       },
@@ -574,11 +561,6 @@ export default {
       const nextImage = images[currentIndex + 1]
       
       this.$emit('navigate-to-image', nextImage)
-    },
-    
-    clearPredictions() {
-      this.lastPrediction = null
-      // Las anotaciones se manejan automáticamente
     }
   }
 }
