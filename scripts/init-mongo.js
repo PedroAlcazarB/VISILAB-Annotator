@@ -5,18 +5,23 @@
 db = db.getSiblingDB('visilab_annotator');
 
 // Crear índices para mejorar el rendimiento
-db.images.createIndex({ "project_id": 1 });
+db.images.createIndex({ "dataset_id": 1 });
 db.images.createIndex({ "filename": 1 });
 db.images.createIndex({ "upload_date": -1 });
 
 db.annotations.createIndex({ "image_id": 1 });
-db.annotations.createIndex({ "category": 1 });
+db.annotations.createIndex({ "category_id": 1 });
+db.annotations.createIndex({ "dataset_id": 1 });
 db.annotations.createIndex({ "type": 1 });
 db.annotations.createIndex({ "created_date": -1 });
 
-db.categories.createIndex({ "project_id": 1 });
-db.categories.createIndex({ "name": 1, "project_id": 1 }, { unique: true });
+db.categories.createIndex({ "dataset_id": 1 });
+db.categories.createIndex({ "name": 1, "dataset_id": 1 }, { unique: true });
+
+// Crear índice para datasets
+db.datasets.createIndex({ "name": 1 }, { unique: true });
+db.datasets.createIndex({ "created_at": -1 });
 
 print('Base de datos visilab_annotator inicializada correctamente');
-print('Colecciones creadas: images, annotations, categories');
+print('Colecciones creadas: images, annotations, categories, datasets');
 print('Índices creados para mejorar el rendimiento');

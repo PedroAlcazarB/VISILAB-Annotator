@@ -416,17 +416,20 @@ export default {
       }
     },
     
-    handleAnnotationsUpdated(updateData) {
+    async handleAnnotationsUpdated(updateData) {
       console.log('Annotations updated from AI prediction:', updateData)
       
       // Refrescar las anotaciones en el store para la imagen actual
       if (this.selectedImage) {
-        this.store.loadAnnotations(this.selectedImage._id)
+        await this.store.loadAnnotations(this.selectedImage._id)
+        
+        // Actualizar el contador de anotaciones después de recargar
+        this.handleAnnotationSaved()
       }
       
       // Si se crearon categorías nuevas, refrescar las categorías
       if (updateData.created_categories && updateData.created_categories.length > 0) {
-        this.store.loadCategories(this.dataset._id)
+        await this.store.loadCategories(this.dataset._id)
       }
       
       // Mostrar mensaje de éxito si está disponible

@@ -1815,11 +1815,11 @@ def process_yolo_format(db, annotations_file, images_file, dataset_id):
             with open(classes_file, 'r') as f:
                 classes = [line.strip() for line in f.readlines()]
             
-            # Crear o encontrar categorías
+            # Crear o encontrar categorías en el dataset actual
             for idx, class_name in enumerate(classes):
                 existing = db.categories.find_one({
                     'name': class_name,
-                    'project_id': dataset_id or 'default'
+                    'dataset_id': dataset_id
                 })
                 
                 if existing:
@@ -1828,7 +1828,7 @@ def process_yolo_format(db, annotations_file, images_file, dataset_id):
                     new_cat = {
                         'name': class_name,
                         'color': f"#{hash(class_name) & 0xFFFFFF:06x}",
-                        'project_id': dataset_id or 'default',
+                        'dataset_id': dataset_id,
                         'created_date': datetime.utcnow()
                     }
                     result = db.categories.insert_one(new_cat)
@@ -1836,21 +1836,35 @@ def process_yolo_format(db, annotations_file, images_file, dataset_id):
                     stats['categories'] += 1
         
         # Procesar archivos .txt de anotaciones
-        for filename in os.listdir(temp_dir):
-            if not filename.endswith('.txt') or filename == 'classes.txt':
-                continue
-            
-            # Buscar imagen correspondiente
+        # Buscar carpeta labels/ o usar la raíz
+        labels_dir = os.path.join(temp_dir, 'labels')
+        if not os.path.exists(labels_dir):
+            labels_dir = temp_dir
+        
+        # Listar archivos de anotaciones
+        if os.path.isdir(labels_dir):
+            annotation_files = [f for f in os.listdir(labels_dir) 
+                              if f.endswith('.txt') and f != 'classes.txt']
+        else:
+            annotation_files = []
+        
+        for filename in annotation_files:
+            # Buscar imagen correspondiente en el dataset actual
             image_name = filename.replace('.txt', '')
             # Intentar con diferentes extensiones
+            existing_img = None
             for ext in ['.jpg', '.jpeg', '.png', '.JPG', '.JPEG', '.PNG']:
                 img_filename = image_name + ext
-                existing_img = db.images.find_one({'filename': img_filename})
+                # Buscar en el dataset especificado
+                existing_img = db.images.find_one({
+                    'filename': img_filename,
+                    'dataset_id': dataset_id
+                })
                 if existing_img:
                     break
             
             if not existing_img:
-                stats['errors'].append(f"Imagen no encontrada para: {filename}")
+                stats['errors'].append(f"Imagen no encontrada en el dataset para: {filename}")
                 continue
             
             image_id = str(existing_img['_id'])
@@ -1859,7 +1873,7 @@ def process_yolo_format(db, annotations_file, images_file, dataset_id):
             stats['images'] += 1
             
             # Leer anotaciones YOLO
-            with open(os.path.join(temp_dir, filename), 'r') as f:
+            with open(os.path.join(labels_dir, filename), 'r') as f:
                 for line in f:
                     parts = line.strip().split()
                     if len(parts) < 5:
@@ -1914,36 +1928,51 @@ def process_pascal_format(db, annotations_file, images_file, dataset_id):
         with zipfile.ZipFile(annotations_file, 'r') as zip_ref:
             zip_ref.extractall(temp_dir)
         
+        # Buscar archivos .xml recursivamente en todas las subcarpetas
+        xml_files = []
+        for root_dir, dirs, files in os.walk(temp_dir):
+            for file in files:
+                if file.endswith('.xml'):
+                    xml_files.append(os.path.join(root_dir, file))
+        
+        print(f"Archivos XML encontrados: {len(xml_files)}")
+        for xml_file in xml_files:
+            print(f"  - {xml_file}")
+        
         # Procesar archivos .xml
-        for filename in os.listdir(temp_dir):
-            if not filename.endswith('.xml'):
-                continue
+        for xml_path in xml_files:
+            filename = os.path.basename(xml_path)
             
             try:
-                tree = ET.parse(os.path.join(temp_dir, filename))
+                tree = ET.parse(xml_path)
                 root = tree.getroot()
                 
                 # Obtener nombre de la imagen
                 image_filename = root.find('filename').text if root.find('filename') is not None else filename.replace('.xml', '.jpg')
+                print(f"Buscando imagen: {image_filename} en dataset: {dataset_id}")
                 
-                # Buscar imagen en la base de datos
-                existing_img = db.images.find_one({'filename': image_filename})
+                # Buscar imagen en el dataset actual
+                existing_img = db.images.find_one({
+                    'filename': image_filename,
+                    'dataset_id': dataset_id
+                })
                 if not existing_img:
-                    stats['errors'].append(f"Imagen no encontrada: {image_filename}")
+                    stats['errors'].append(f"Imagen no encontrada en el dataset para: {image_filename}")
                     continue
                 
                 image_id = str(existing_img['_id'])
                 stats['images'] += 1
+                print(f"  ✓ Imagen encontrada: {image_filename}")
                 
                 # Procesar cada objeto anotado
                 for obj in root.findall('object'):
                     name = obj.find('name').text
                     
-                    # Crear o encontrar categoría
+                    # Crear o encontrar categoría en el dataset actual
                     if name not in category_map:
                         existing_cat = db.categories.find_one({
                             'name': name,
-                            'project_id': dataset_id or 'default'
+                            'dataset_id': dataset_id
                         })
                         
                         if existing_cat:
@@ -1952,12 +1981,13 @@ def process_pascal_format(db, annotations_file, images_file, dataset_id):
                             new_cat = {
                                 'name': name,
                                 'color': f"#{hash(name) & 0xFFFFFF:06x}",
-                                'project_id': dataset_id or 'default',
+                                'dataset_id': dataset_id,
                                 'created_date': datetime.utcnow()
                             }
                             result = db.categories.insert_one(new_cat)
                             category_map[name] = str(result.inserted_id)
                             stats['categories'] += 1
+                            print(f"Categoría creada: {name}")
                     
                     # Obtener coordenadas del bounding box
                     bbox_elem = obj.find('bndbox')
