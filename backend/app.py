@@ -2456,12 +2456,123 @@ import shutil
 
 # Variable global para almacenar el modelo cargado
 loaded_model = None
+loaded_model_id = None
 model_name = None
 model_categories = []
 
 # Directorio permanente para modelos guardados
 MODELS_DIR = os.path.join(os.getcwd(), 'ai_models')
 os.makedirs(MODELS_DIR, exist_ok=True)
+
+# Archivo de configuración para modelos precargados
+PRELOADED_MODELS_CONFIG = os.path.join(MODELS_DIR, 'preloaded_models.json')
+
+def ensure_preloaded_models():
+    """
+    Asegura que los modelos precargados estén registrados en la base de datos.
+    Lee el archivo preloaded_models.json y registra los modelos si existen.
+    """
+    if not os.path.exists(PRELOADED_MODELS_CONFIG):
+        return
+    
+    try:
+        with open(PRELOADED_MODELS_CONFIG, 'r', encoding='utf-8') as f:
+            preloaded_config = json.load(f)
+    except Exception as e:
+        print(f"Error al leer preloaded_models.json: {e}")
+        return
+    
+    if not isinstance(preloaded_config, list):
+        print("El archivo preloaded_models.json debe contener una lista de modelos")
+        return
+    
+    db = get_db()
+    
+    for model_config in preloaded_config:
+        try:
+            name = model_config.get('name')
+            file_name = model_config.get('model_file')
+            
+            if not name or not file_name:
+                continue
+            
+            # Construir ruta completa del archivo
+            if os.path.isabs(file_name):
+                model_path = file_name
+            else:
+                model_path = os.path.join(MODELS_DIR, file_name)
+            
+            # Verificar que el archivo exista
+            if not os.path.exists(model_path):
+                print(f"Modelo precargado no encontrado: {model_path}")
+                continue
+            
+            # Verificar si ya existe en la base de datos
+            existing_model = db.ai_models.find_one({'file_path': model_path})
+            
+            # Procesar archivo YAML si existe
+            yaml_path = model_config.get('yaml_file')
+            if yaml_path:
+                if not os.path.isabs(yaml_path):
+                    yaml_path = os.path.join(MODELS_DIR, yaml_path)
+                if not os.path.exists(yaml_path):
+                    yaml_path = None
+            
+            # Obtener categorías
+            categories = model_config.get('categories', [])
+            if not categories and yaml_path:
+                try:
+                    with open(yaml_path, 'r', encoding='utf-8') as yf:
+                        yaml_data = yaml.safe_load(yf)
+                        if 'names' in yaml_data:
+                            if isinstance(yaml_data['names'], dict):
+                                categories = list(yaml_data['names'].values())
+                            else:
+                                categories = yaml_data['names']
+                except Exception as e:
+                    print(f"Error leyendo YAML para {name}: {e}")
+            
+            if existing_model:
+                # Actualizar modelo existente para marcarlo como precargado
+                db.ai_models.update_one(
+                    {'_id': existing_model['_id']},
+                    {'$set': {
+                        'is_preloaded': True,
+                        'name': name,
+                        'description': model_config.get('description', existing_model.get('description', '')),
+                        'categories': categories or existing_model.get('categories', [])
+                    }}
+                )
+            else:
+                # Crear nuevo modelo
+                import uuid
+                model_uuid = model_config.get('uuid', str(uuid.uuid4()))
+                
+                model_doc = {
+                    'name': name,
+                    'description': model_config.get('description', name),
+                    'file_path': model_path,
+                    'yaml_path': yaml_path,
+                    'categories': categories,
+                    'uuid': model_uuid,
+                    'created_at': model_config.get('created_at', datetime.now().isoformat()),
+                    'file_size': os.path.getsize(model_path),
+                    'original_filename': os.path.basename(model_path),
+                    'is_preloaded': True
+                }
+                
+                db.ai_models.insert_one(model_doc)
+                print(f"Modelo precargado registrado: {name}")
+        
+        except Exception as e:
+            print(f"Error procesando modelo precargado {model_config}: {e}")
+
+# Inicializar modelos precargados al importar el módulo
+try:
+    ensure_preloaded_models()
+    print("Modelos precargados inicializados")
+except Exception as e:
+    print(f"Error al inicializar modelos precargados: {e}")
 
 def _generate_color_not_in_set(used_colors_set):
     """
@@ -2609,18 +2720,30 @@ def get_category_mapping(dataset_id, model_categories):
 
 @app.route('/api/ai/saved-models', methods=['GET'])
 def get_saved_models():
-    """Obtener lista de modelos guardados"""
+    """Obtener lista de modelos guardados, separados por tipo"""
     try:
         db = get_db()
         models = list(db.ai_models.find())
         
+        preloaded_models = []
+        custom_models = []
+        
         for model in models:
             model['_id'] = str(model['_id'])
             model['id'] = model['_id']
+            model['is_preloaded'] = model.get('is_preloaded', False)
+            model['can_delete'] = not model['is_preloaded']
+            
+            if model['is_preloaded']:
+                preloaded_models.append(model)
+            else:
+                custom_models.append(model)
         
         return jsonify({
             'success': True,
-            'models': models
+            'models': models,
+            'preloaded': preloaded_models,
+            'custom': custom_models
         })
     except Exception as e:
         return jsonify({'error': f'Error al obtener modelos: {str(e)}'}), 500
@@ -2628,7 +2751,7 @@ def get_saved_models():
 @app.route('/api/ai/load-saved-model', methods=['POST'])
 def load_saved_model():
     """Cargar un modelo previamente guardado y crear sus categorías en el dataset"""
-    global loaded_model, model_name, model_categories
+    global loaded_model, loaded_model_id, model_name, model_categories
     
     try:
         data = request.get_json()
@@ -2655,6 +2778,7 @@ def load_saved_model():
         loaded_model = YOLO(model_path)
         model_name = model_doc['name']
         model_categories = model_doc['categories']
+        loaded_model_id = str(model_doc['_id'])
         
         # Crear categorías del modelo en el dataset si se proporciona dataset_id
         created_categories = []
@@ -2670,7 +2794,8 @@ def load_saved_model():
                 'id': str(model_doc['_id']),
                 'name': model_doc['name'],
                 'description': model_doc.get('description', ''),
-                'created_at': model_doc.get('created_at', '')
+                'created_at': model_doc.get('created_at', ''),
+                'is_preloaded': model_doc.get('is_preloaded', False)
             }
         })
         
@@ -2681,7 +2806,7 @@ def load_saved_model():
 @app.route('/api/ai/load-model', methods=['POST'])
 def load_ai_model():
     """Cargar un modelo YOLO para inferencia y guardarlo en la base de datos"""
-    global loaded_model, model_name, model_categories
+    global loaded_model, loaded_model_id, model_name, model_categories
     
     try:
         # Importar YOLO solo cuando sea necesario
@@ -2765,11 +2890,13 @@ def load_ai_model():
             'uuid': model_uuid,
             'created_at': datetime.now().isoformat(),
             'file_size': os.path.getsize(permanent_model_path),
-            'original_filename': model_file.filename
+            'original_filename': model_file.filename,
+            'is_preloaded': False
         }
         
         result = db.ai_models.insert_one(model_doc)
         model_doc['_id'] = str(result.inserted_id)
+        loaded_model_id = str(result.inserted_id)
         
         # Crear categorías del modelo en el dataset si se proporciona dataset_id
         created_categories = []
@@ -2806,10 +2933,11 @@ def load_ai_model():
 @app.route('/api/ai/unload-model', methods=['POST'])
 def unload_ai_model():
     """Descargar el modelo actual"""
-    global loaded_model, model_name, model_categories
+    global loaded_model, loaded_model_id, model_name, model_categories
     
     try:
         loaded_model = None
+        loaded_model_id = None
         model_name = None
         model_categories = []
         
@@ -2823,6 +2951,65 @@ def unload_ai_model():
         
     except Exception as e:
         return jsonify({'error': f'Error al descargar modelo: {str(e)}'}), 500
+
+@app.route('/api/ai/models/<model_id>', methods=['DELETE'])
+def delete_ai_model(model_id):
+    """Eliminar un modelo personalizado (no precargado)"""
+    global loaded_model, loaded_model_id, model_name, model_categories
+    
+    try:
+        if not ObjectId.is_valid(model_id):
+            return jsonify({'error': 'ID de modelo inválido'}), 400
+        
+        db = get_db()
+        model_doc = db.ai_models.find_one({'_id': ObjectId(model_id)})
+        
+        if not model_doc:
+            return jsonify({'error': 'Modelo no encontrado'}), 404
+        
+        # No permitir eliminar modelos precargados
+        if model_doc.get('is_preloaded', False):
+            return jsonify({'error': 'No se pueden eliminar modelos precargados'}), 403
+        
+        # Eliminar modelo de la base de datos
+        result = db.ai_models.delete_one({'_id': ObjectId(model_id)})
+        
+        if result.deleted_count == 0:
+            return jsonify({'error': 'No se pudo eliminar el modelo'}), 500
+        
+        # Eliminar archivos físicos si existen
+        try:
+            # Intentar eliminar por UUID (carpeta completa)
+            if model_doc.get('uuid'):
+                model_folder = os.path.join(MODELS_DIR, model_doc['uuid'])
+                if os.path.exists(model_folder):
+                    shutil.rmtree(model_folder)
+                    print(f"Carpeta del modelo eliminada: {model_folder}")
+            else:
+                # Fallback: eliminar archivo individual
+                model_path = model_doc.get('file_path')
+                if model_path and os.path.exists(model_path):
+                    os.remove(model_path)
+                    print(f"Archivo de modelo eliminado: {model_path}")
+        except Exception as file_error:
+            print(f"Error al eliminar archivos del modelo {model_id}: {file_error}")
+            # No fallar la operación si solo hay error al eliminar archivos
+        
+        # Si el modelo eliminado es el que está cargado, descargarlo
+        if loaded_model_id == str(model_doc['_id']):
+            loaded_model = None
+            loaded_model_id = None
+            model_name = None
+            model_categories = []
+        
+        return jsonify({
+            'success': True,
+            'message': f'Modelo "{model_doc["name"]}" eliminado exitosamente'
+        })
+        
+    except Exception as e:
+        print(f"Error al eliminar modelo: {e}")
+        return jsonify({'error': f'Error al eliminar modelo: {str(e)}'}), 500
 
 @app.route('/api/ai/predict', methods=['POST'])
 def predict_image():

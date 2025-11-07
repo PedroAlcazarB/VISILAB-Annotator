@@ -1,0 +1,8 @@
+[
+  {
+    "name": "Detector de Armas v1.0",
+    "description": "Modelo YOLO entrenado para detectar armas de fuego y clasificar entre pistola, ametralladora y sin arma",
+    "model_file": "best.pt",
+    "yaml_file": "Guns_dataset.yaml"
+  }
+]

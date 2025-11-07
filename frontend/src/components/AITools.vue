@@ -5,95 +5,100 @@
       Herramientas de IA
     </h3>
     
-    <!-- Sección de carga de modelo -->
+    <!-- Selección de modelo -->
     <div class="ai-section">
       <h4>Modelo de IA</h4>
       
-      <!-- Desplegable para modelos guardados -->
-      <div v-if="savedModels.length > 0" class="form-group">
-        <label for="saved-models">Modelos guardados:</label>
-        <select 
-          id="saved-models"
-          v-model="selectedSavedModel" 
-          class="form-control"
-          :disabled="isModelLoaded"
-          @change="loadSavedModel"
-        >
-          <option value="">Seleccionar modelo guardado...</option>
-          <option 
-            v-for="model in savedModels" 
-            :key="model.id" 
-            :value="model.id"
+      <div v-if="isLoadingSavedModels" class="loading-indicator">
+        <i class="fas fa-spinner fa-spin"></i>
+        <span>Cargando modelos...</span>
+      </div>
+      
+      <div v-else>
+        <!-- Lista de modelos precargados -->
+        <div v-if="preloadedModels.length > 0" class="models-list">
+          <div 
+            v-for="model in preloadedModels" 
+            :key="model.id"
+            class="model-item"
+            :class="{
+              'active': isModelLoaded && loadedModelId === model.id,
+              'loading': isLoadingModel && selectedSavedModel === model.id
+            }"
           >
-            {{ model.name }} ({{ model.categories.length }} categorías)
-          </option>
-        </select>
+            <div class="model-info">
+              <div class="model-name">
+                <i class="fas fa-star"></i>
+                <strong>{{ model.name }}</strong>
+              </div>
+              <small class="model-meta">{{ model.categories?.length || 0 }} categorías</small>
+            </div>
+            <button 
+              class="btn-load"
+              :class="{ 'active': isModelLoaded && loadedModelId === model.id }"
+              :disabled="isLoadingModel || (isModelLoaded && loadedModelId === model.id)"
+              @click="selectAndLoadModel(model.id)"
+            >
+              <i v-if="isLoadingModel && selectedSavedModel === model.id" class="fas fa-spinner fa-spin"></i>
+              <i v-else-if="isModelLoaded && loadedModelId === model.id" class="fas fa-check"></i>
+              <i v-else class="fas fa-play"></i>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Lista de modelos personalizados -->
+        <div v-if="customModels.length > 0" class="models-list custom-models">
+          <div class="section-label">Modelos personalizados</div>
+          <div 
+            v-for="model in customModels" 
+            :key="model.id"
+            class="model-item"
+            :class="{
+              'active': isModelLoaded && loadedModelId === model.id,
+              'loading': isLoadingModel && selectedSavedModel === model.id
+            }"
+          >
+            <div class="model-info">
+              <div class="model-name">
+                <i class="fas fa-cube"></i>
+                <strong>{{ model.name }}</strong>
+              </div>
+              <small class="model-meta">{{ model.categories?.length || 0 }} categorías</small>
+            </div>
+            <button 
+              class="btn-load"
+              :class="{ 'active': isModelLoaded && loadedModelId === model.id }"
+              :disabled="isLoadingModel || (isModelLoaded && loadedModelId === model.id)"
+              @click="selectAndLoadModel(model.id)"
+            >
+              <i v-if="isLoadingModel && selectedSavedModel === model.id" class="fas fa-spinner fa-spin"></i>
+              <i v-else-if="isModelLoaded && loadedModelId === model.id" class="fas fa-check"></i>
+              <i v-else class="fas fa-play"></i>
+            </button>
+          </div>
+        </div>
+        
+        <!-- Mensaje cuando no hay modelos -->
+        <div v-if="preloadedModels.length === 0 && customModels.length === 0" class="no-models">
+          <i class="fas fa-inbox"></i>
+          <p>No hay modelos disponibles</p>
+        </div>
+        
+        <!-- Hint para gestionar modelos -->
+        <div class="models-hint">
+          <i class="fas fa-info-circle"></i>
+          <span>Gestiona tus modelos desde la sección <strong>Modelos</strong> en el menú superior</span>
+        </div>
       </div>
       
-      <div v-if="savedModels.length > 0" class="separator">
-        <span>O cargar nuevo modelo</span>
-      </div>
-      
-      <!-- Input para el nombre del modelo -->
-      <div class="form-group">
-        <label for="model-name">Nombre del modelo:</label>
-        <input 
-          id="model-name"
-          v-model="modelName" 
-          type="text" 
-          class="form-control"
-          placeholder="Ej: Detector de armas v1.0"
-          :disabled="isModelLoaded"
-        />
-      </div>
-      
-      <!-- Input para cargar archivo del modelo -->
-      <div class="form-group">
-        <label for="model-file">Cargar modelo (.pt):</label>
-        <input 
-          id="model-file"
-          ref="modelFileInput"
-          type="file" 
-          accept=".pt"
-          class="form-control file-input"
-          @change="handleModelFileSelect"
-          :disabled="isModelLoaded || isLoadingModel"
-        />
-      </div>
-      
-      <!-- Input para cargar archivo YAML (opcional) -->
-      <div class="form-group">
-        <label for="yaml-file">Archivo de configuración (.yaml - opcional):</label>
-        <input 
-          id="yaml-file"
-          ref="yamlFileInput"
-          type="file" 
-          accept=".yaml,.yml"
-          class="form-control file-input"
-          @change="handleYamlFileSelect"
-          :disabled="isModelLoaded || isLoadingModel"
-        />
-      </div>
-      
-      <!-- Botón para cargar modelo -->
-      <button 
-        @click="loadModel"
-        class="btn btn-primary"
-        :disabled="!canLoadModel || isLoadingModel"
-      >
-        <i v-if="isLoadingModel" class="fas fa-spinner fa-spin"></i>
-        <i v-else class="fas fa-upload"></i>
-        {{ isLoadingModel ? 'Cargando...' : 'Cargar Modelo' }}
-      </button>
-      
-      <!-- Estado del modelo -->
+      <!-- Estado del modelo cargado -->
       <div v-if="isModelLoaded" class="model-status loaded">
         <i class="fas fa-check-circle"></i>
         <div class="status-info">
           <strong>{{ loadedModelName }}</strong>
-          <span>Modelo cargado exitosamente</span>
+          <span>Modelo cargado</span>
         </div>
-        <button @click="unloadModel" class="btn btn-sm btn-outline" title="Descargar modelo">
+        <button @click="unloadModel" class="btn btn-sm btn-outline" title="Eliminar modelo">
           <i class="fas fa-times"></i>
         </button>
       </div>
@@ -101,21 +106,6 @@
       <div v-else-if="modelError" class="model-status error">
         <i class="fas fa-exclamation-triangle"></i>
         <span>{{ modelError }}</span>
-      </div>
-    </div>
-    
-    <!-- Sección de categorías del modelo -->
-    <div v-if="isModelLoaded && modelCategories.length > 0" class="ai-section">
-      <h4>Categorías del Modelo</h4>
-      <div class="categories-list">
-        <div 
-          v-for="(category, index) in modelCategories" 
-          :key="index"
-          class="category-item"
-        >
-          <span class="category-index">{{ index }}</span>
-          <span class="category-name">{{ category }}</span>
-        </div>
       </div>
     </div>
     
@@ -184,7 +174,7 @@
     </div>
     
     <!-- Navegación entre imágenes -->
-    <div v-if="isModelLoaded" class="ai-section">
+    <div class="ai-section">
       <h4>Navegación</h4>
       <div class="navigation-controls">
         <button 
@@ -206,7 +196,7 @@
         </button>
       </div>
       
-      <div class="auto-predict">
+      <div v-if="isModelLoaded" class="auto-predict">
         <label>
           <input 
             v-model="autoPredictOnNavigate" 
@@ -242,17 +232,16 @@ export default {
   data() {
     return {
       // Estado del modelo
-      modelName: '',
       loadedModelName: '',
-      selectedModelFile: null,
-      selectedYamlFile: null,
+      loadedModelId: null,
       isModelLoaded: false,
       isLoadingModel: false,
       modelError: null,
       modelCategories: [],
       
       // Modelos guardados
-      savedModels: [],
+      preloadedModels: [],
+      customModels: [],
       selectedSavedModel: '',
       isLoadingSavedModels: false,
       
@@ -266,10 +255,6 @@ export default {
     }
   },
   computed: {
-    canLoadModel() {
-      return this.modelName.trim() && this.selectedModelFile && !this.isModelLoaded
-    },
-    
     canPredict() {
       return this.isModelLoaded && this.currentImage && !this.isPredicting
     },
@@ -316,7 +301,8 @@ export default {
         const result = await response.json()
         
         if (response.ok) {
-          this.savedModels = result.models || []
+          this.preloadedModels = result.preloaded || []
+          this.customModels = result.custom || []
         } else {
           console.error('Error al cargar modelos guardados:', result.error)
         }
@@ -325,6 +311,14 @@ export default {
       } finally {
         this.isLoadingSavedModels = false
       }
+    },
+    
+    async selectAndLoadModel(modelId) {
+      if (!modelId || this.isLoadingModel) return
+      if (this.isModelLoaded && this.loadedModelId === modelId) return
+      
+      this.selectedSavedModel = modelId
+      await this.loadSavedModel()
     },
     
     async loadSavedModel() {
@@ -350,6 +344,7 @@ export default {
         if (response.ok) {
           this.isModelLoaded = true
           this.loadedModelName = result.model_info.name
+          this.loadedModelId = result.model_info.id
           this.modelCategories = result.categories || []
           
           // Si se crearon categorías, recargar las categorías del store
@@ -372,79 +367,6 @@ export default {
         this.isLoadingModel = false
       }
     },
-    handleModelFileSelect(event) {
-      const file = event.target.files[0]
-      if (file) {
-        this.selectedModelFile = file
-        // Si no hay nombre del modelo, usar el nombre del archivo sin extensión
-        if (!this.modelName.trim()) {
-          this.modelName = file.name.replace(/\.[^/.]+$/, "")
-        }
-      }
-    },
-    
-    handleYamlFileSelect(event) {
-      const file = event.target.files[0]
-      this.selectedYamlFile = file
-    },
-    
-    async loadModel() {
-      if (!this.canLoadModel) return
-      
-      this.isLoadingModel = true
-      this.modelError = null
-      
-      try {
-        const formData = new FormData()
-        formData.append('model_file', this.selectedModelFile)
-        formData.append('model_name', this.modelName)
-        formData.append('dataset_id', this.datasetId)
-        
-        if (this.selectedYamlFile) {
-          formData.append('yaml_file', this.selectedYamlFile)
-        }
-        
-        const response = await fetch('http://localhost:5000/api/ai/load-model', {
-          method: 'POST',
-          body: formData
-        })
-        
-        const result = await response.json()
-        
-        if (response.ok) {
-          this.isModelLoaded = true
-          this.loadedModelName = this.modelName
-          this.modelCategories = result.categories || []
-          
-          // Si se crearon categorías, recargar las categorías del store
-          if (result.created_categories && result.created_categories.length > 0) {
-            await this.store.loadCategories(this.datasetId)
-            console.log(`Se crearon ${result.created_categories.length} categorías automáticamente`)
-          }
-          
-          // Limpiar inputs
-          this.$refs.modelFileInput.value = ''
-          this.$refs.yamlFileInput.value = ''
-          this.selectedModelFile = null
-          this.selectedYamlFile = null
-          
-          // Actualizar lista de modelos guardados
-          await this.loadSavedModelsList()
-          
-          this.$emit('model-loaded', {
-            name: this.loadedModelName,
-            categories: this.modelCategories
-          })
-        } else {
-          this.modelError = result.error || 'Error al cargar el modelo'
-        }
-      } catch (error) {
-        console.error('Error loading model:', error)
-        this.modelError = 'Error de conexión al cargar el modelo'
-      } finally {
-        this.isLoadingModel = false
-      }
-    },
     
     async unloadModel() {
       try {
@@ -455,10 +377,10 @@ export default {
         if (response.ok) {
           this.isModelLoaded = false
           this.loadedModelName = ''
+          this.loadedModelId = null
           this.modelCategories = []
           this.lastPrediction = null
-          this.modelName = ''
-          this.selectedSavedModel = ''  // Limpiar selección del desplegable
+          this.selectedSavedModel = ''
           
           // Las anotaciones se manejan automáticamente por el store
           
@@ -606,6 +528,195 @@ export default {
   font-weight: 600;
 }
 
+.loading-indicator {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 15px;
+  background: #f8f9fa;
+  border-radius: 6px;
+  color: #6c757d;
+  font-size: 0.9rem;
+}
+
+.models-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 15px;
+}
+
+.models-list.custom-models {
+  margin-top: 15px;
+}
+
+.section-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #6c757d;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.model-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px;
+  background: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.model-item:hover {
+  background: #e9ecef;
+  border-color: #dee2e6;
+}
+
+.model-item.active {
+  background: #d4edda;
+  border-color: #c3e6cb;
+}
+
+.model-item.loading {
+  opacity: 0.7;
+}
+
+.model-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.model-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.9rem;
+  color: #495057;
+}
+
+.model-name i {
+  font-size: 0.85rem;
+  color: #f59e0b;
+}
+
+.model-name i.fa-cube {
+  color: #3b82f6;
+}
+
+.model-meta {
+  font-size: 0.8rem;
+  color: #6c757d;
+}
+
+.btn-load {
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
+  border: 1px solid #dee2e6;
+  background: white;
+  color: #495057;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-load:hover:not(:disabled) {
+  background: #007bff;
+  color: white;
+  border-color: #007bff;
+  transform: scale(1.05);
+}
+
+.btn-load.active {
+  background: #28a745;
+  color: white;
+  border-color: #28a745;
+}
+
+.btn-load:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.no-models {
+  text-align: center;
+  padding: 30px 20px;
+  color: #6c757d;
+}
+
+.no-models i {
+  font-size: 2.5rem;
+  margin-bottom: 10px;
+  opacity: 0.3;
+}
+
+.no-models p {
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.models-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px;
+  background: #e7f3ff;
+  border: 1px solid #b3d9ff;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: #004085;
+  margin-top: 15px;
+}
+
+.models-hint i {
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+.model-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: 4px;
+  margin-top: 15px;
+  font-size: 0.9rem;
+}
+
+.model-status.loaded {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.model-status.error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.status-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.status-info strong {
+  margin-bottom: 2px;
+}
+
+.status-info span {
+  font-size: 0.8rem;
+  opacity: 0.8;
+}
+
 .form-group {
   margin-bottom: 15px;
 }
@@ -654,10 +765,6 @@ export default {
   opacity: 1;
 }
 
-.file-input {
-  padding: 6px 8px;
-}
-
 .range-input {
   padding: 0;
   height: 30px;
@@ -680,15 +787,6 @@ export default {
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-
-.btn-primary {
-  background-color: #007bff;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background-color: #0056b3;
 }
 
 .btn-success {
@@ -714,43 +812,6 @@ export default {
 .btn-sm {
   padding: 4px 8px;
   font-size: 0.8rem;
-}
-
-.model-status {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px;
-  border-radius: 4px;
-  margin-top: 10px;
-  font-size: 0.9rem;
-}
-
-.model-status.loaded {
-  background-color: #d4edda;
-  color: #155724;
-  border: 1px solid #c3e6cb;
-}
-
-.model-status.error {
-  background-color: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
-}
-
-.status-info {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-}
-
-.status-info strong {
-  margin-bottom: 2px;
-}
-
-.status-info span {
-  font-size: 0.8rem;
-  opacity: 0.8;
 }
 
 .categories-list {

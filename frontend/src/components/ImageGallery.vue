@@ -127,7 +127,6 @@
             @tool-changed="onToolChanged"
             @annotation-cleared="onAnnotationCleared"
             @undo-action="onUndoAction"
-            @annotation-completed="onAnnotationCompleted"
           />
         </div>
         
@@ -292,11 +291,6 @@ async function onAnnotationCleared() {
 function onUndoAction() {
   // Implementar lógica de undo - por ahora placeholder
   console.log('Undo action called')
-}
-
-function onAnnotationCompleted() {
-  // Completar anotación actual - por ahora placeholder
-  console.log('Annotation completed')
 }
 
 function closeAnnotationView() {

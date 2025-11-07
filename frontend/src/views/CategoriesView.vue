@@ -34,7 +34,7 @@
         <i class="fas fa-tags"></i>
         <h3>No hay categorías</h3>
         <p>Crea tu primera categoría para comenzar a anotar</p>
-        <button @click="showCreateModal = true" class="btn btn-primary">
+        <button @click="showCreateModal = true" class="btn btn-primary btn-large">
           <i class="fas fa-plus"></i>
           Crear Primera Categoría
         </button>
@@ -538,6 +538,35 @@ onMounted(() => {
 .empty-state h3 {
   margin: 1rem 0;
   color: #2c3e50;
+}
+
+.empty-state .btn-large {
+  padding: 0.875rem 2rem;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-top: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+}
+
+.empty-state .btn-large:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+}
+
+.empty-state .btn-large i {
+  font-size: 1.2rem !important;
+  line-height: 1 !important;
+  margin: 0 !important;
+  color: white !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: inline-block !important;
 }
 
 /* Categories Grid */

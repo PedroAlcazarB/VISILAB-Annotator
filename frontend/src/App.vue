@@ -7,6 +7,7 @@
         <nav>
           <a href="#" class="nav-link active">Inicio</a>
           <a href="#" class="nav-link" @click="goToDatasets">Anotador</a>
+          <a href="#" class="nav-link" @click="goToModels">Modelos</a>
           <a href="#" class="nav-link" @click="goToCategories">Categorías</a>
         </nav>
       </header>
@@ -27,11 +28,27 @@
         <nav>
           <a href="#" class="nav-link" @click="goToWelcome">Inicio</a>
           <a href="#" class="nav-link active">Anotador</a>
+          <a href="#" class="nav-link" @click="goToModels">Modelos</a>
           <a href="#" class="nav-link" @click="goToCategories">Categorías</a>
         </nav>
       </header>
       
       <DatasetManager @dataset-selected="selectDataset" />
+    </div>
+
+    <!-- Gestión de modelos de IA -->
+    <div v-else-if="currentView === 'models'" class="models-screen">
+      <header class="app-header">
+        <h1>VISILAB Annotator</h1>
+        <nav>
+          <a href="#" class="nav-link" @click="goToWelcome">Inicio</a>
+          <a href="#" class="nav-link" @click="goToDatasets">Anotador</a>
+          <a href="#" class="nav-link active">Modelos</a>
+          <a href="#" class="nav-link" @click="goToCategories">Categorías</a>
+        </nav>
+      </header>
+      
+      <ModelsView />
     </div>
 
     <!-- Gestión de categorías -->
@@ -41,6 +58,7 @@
         <nav>
           <a href="#" class="nav-link" @click="goToWelcome">Inicio</a>
           <a href="#" class="nav-link" @click="goToDatasets">Anotador</a>
+          <a href="#" class="nav-link" @click="goToModels">Modelos</a>
           <a href="#" class="nav-link active">Categorías</a>
         </nav>
       </header>
@@ -61,6 +79,7 @@
 <script>
 import DatasetManager from './components/DatasetManager.vue'
 import DatasetView from './views/DatasetView.vue'
+import ModelsView from './views/ModelsView.vue'
 import CategoriesView from './views/CategoriesView.vue'
 
 export default {
@@ -68,11 +87,12 @@ export default {
   components: {
     DatasetManager,
     DatasetView,
+    ModelsView,
     CategoriesView
   },
   data() {
     return {
-      currentView: 'welcome', // 'welcome', 'datasets', 'dataset', 'categories'
+      currentView: 'welcome', // 'welcome', 'datasets', 'dataset', 'models', 'categories'
       selectedDataset: null
     }
   },
@@ -84,6 +104,11 @@ export default {
     
     goToDatasets() {
       this.currentView = 'datasets'
+      this.selectedDataset = null
+    },
+    
+    goToModels() {
+      this.currentView = 'models'
       this.selectedDataset = null
     },
     

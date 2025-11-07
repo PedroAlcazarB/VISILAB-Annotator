@@ -167,7 +167,6 @@
           <AnnotationToolbar 
             @annotation-cleared="handleAnnotationsUpdated"
             @undo-action="handleAnnotationsUpdated"
-            @annotation-completed="handleAnnotationCompleted"
           />
           <CategoryManager />
         </div>
@@ -357,30 +356,6 @@ export default {
     
     handleAnnotationsUpdated() {
       this.handleAnnotationSaved()
-    },
-
-    async handleAnnotationCompleted(event) {
-      const imageId = event?.imageId || this.selectedImage?._id || this.selectedImage?.id
-      if (!imageId) return
-      this.store.markImageAsCompleted(imageId)
-      this.handleAnnotationSaved()
-
-      if (this.selectedImage) {
-        this.selectedImage.completed = true
-      }
-      const inList = this.images.find(img => (img._id || img.id) === imageId)
-      if (inList) {
-        inList.completed = true
-      }
-
-      const nextImage = this.store.getNextIncompleteImage(imageId)
-      if (nextImage) {
-        await this.openAnnotator(nextImage)
-        this.handleAnnotationSaved()
-      } else {
-        alert('Imagen marcada como completada. No quedan más imágenes pendientes.')
-        this.closeAnnotator()
-      }
     },
 
     handleAnnotationSaved() {

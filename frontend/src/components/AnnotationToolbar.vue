@@ -150,16 +150,6 @@
         <i class="fas fa-undo"></i>
         Deshacer
       </button>
-      
-      <button 
-        @click="completeAnnotation"
-        class="action-btn success"
-        :disabled="!hasImageAnnotations"
-        title="Marcar imagen como completada"
-      >
-        <i class="fas fa-check"></i>
-        Completar
-      </button>
     </div>
   </div>
 </template>
@@ -276,18 +266,11 @@ const undoLastAction = async () => {
   }
 }
 
-const completeAnnotation = () => {
-  const imageId = currentImageId.value
-  if (!imageId || !hasImageAnnotations.value) return
-  emit('annotation-completed', { imageId })
-}
-
 // Eventos
 const emit = defineEmits([
   'tool-changed', 
   'annotation-cleared', 
-  'undo-action', 
-  'annotation-completed'
+  'undo-action'
 ])
 
 // Inicializar herramienta por defecto
