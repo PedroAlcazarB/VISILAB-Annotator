@@ -9,19 +9,22 @@
         </button>
         <div class="dataset-info">
           <h1>{{ dataset.name }}</h1>
-          <p>Total de {{ images.length }} imágenes mostradas en 1 página.</p>
+          <p>{{ filteredImages.length }} imágenes{{ filterStatus !== 'all' ? ' filtradas' : '' }}</p>
         </div>
       </div>
       
       <div class="header-actions">
-        <button @click="showExportModal = true" class="btn btn-warning">
-          <i class="fas fa-file-export"></i> Exportar Anotaciones
+        <button @click="showExportModal = true" class="btn btn-warning" title="Exportar Anotaciones">
+          <i class="fas fa-file-export"></i>
+          <span class="btn-text">Exportar</span>
         </button>
-        <button @click="showImportModal = true" class="btn btn-info">
-          <i class="fas fa-file-import"></i> Importar Anotaciones
+        <button @click="showImportModal = true" class="btn btn-info" title="Importar Anotaciones">
+          <i class="fas fa-file-import"></i>
+          <span class="btn-text">Importar</span>
         </button>
-        <button @click="showUploadModal = true" class="btn btn-success">
-          <i class="fas fa-upload"></i> Subir Imágenes
+        <button @click="showUploadModal = true" class="btn btn-success" title="Subir Imágenes">
+          <i class="fas fa-upload"></i>
+          <span class="btn-text">Subir</span>
         </button>
       </div>
     </div>
@@ -52,67 +55,139 @@
 
       <!-- Galería de imágenes -->
       <div class="main-content">
-        <div v-if="loading" class="loading">
-          <div class="spinner"></div>
-          <p>Cargando imágenes...</p>
-        </div>
-        
-        <div v-else-if="images.length === 0" class="no-images">
-          <i class="fas fa-images"></i>
-          <p>No se encontraron imágenes en el dataset</p>
-          <button @click="showUploadModal = true" class="btn btn-primary">
-            Subir Imágenes
-          </button>
-        </div>
-        
-        <div v-else>
-          <!-- Barra de filtros -->
-          <div class="filter-bar">
-            <label for="image-filter">Filtrar:</label>
-            <select id="image-filter" v-model="filterStatus" class="filter-select">
-              <option value="all">Todas las imágenes</option>
-              <option value="with-annotations">Con anotaciones</option>
-              <option value="no-annotations">Sin anotaciones</option>
-            </select>
-            <span v-if="filterStatus !== 'all'" class="filter-results">
-              {{ filteredImages.length }} resultado(s)
-            </span>
+        <div class="content-area">
+          <div v-if="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Cargando imágenes...</p>
           </div>
+          
+          <div v-else-if="images.length === 0" class="no-images">
+            <i class="fas fa-images"></i>
+            <p>No se encontraron imágenes en el dataset</p>
+            <button @click="showUploadModal = true" class="btn btn-primary">
+              Subir Imágenes
+            </button>
+          </div>
+          
+          <div v-else>
+            <!-- Barra de filtros -->
+            <div class="filter-bar">
+              <label class="filter-label" id="image-filter-label">Filtrar:</label>
+              <div class="filter-select-wrapper" ref="filterDropdown">
+                <button
+                  type="button"
+                  class="filter-select"
+                  :class="{ open: isFilterDropdownOpen }"
+                  id="filter-select-button"
+                  :aria-expanded="isFilterDropdownOpen.toString()"
+                  aria-haspopup="listbox"
+                  aria-labelledby="image-filter-label filter-select-button"
+                  @click.stop="toggleFilterDropdown"
+                >
+                  <span class="filter-select__value">{{ filterStatusLabel }}</span>
+                  <i class="fas fa-chevron-down dropdown-icon"></i>
+                </button>
+                <ul
+                  v-if="isFilterDropdownOpen"
+                  class="filter-options"
+                  role="listbox"
+                  aria-labelledby="image-filter-label"
+                >
+                  <li
+                    v-for="option in filterOptions"
+                    :key="option.value"
+                    class="filter-option"
+                    :class="{ active: option.value === filterStatus }"
+                    role="option"
+                    :aria-selected="option.value === filterStatus"
+                    @click.stop="selectFilterOption(option.value)"
+                  >
+                    <span>{{ option.label }}</span>
+                    <i v-if="option.value === filterStatus" class="fas fa-check"></i>
+                  </li>
+                </ul>
+              </div>
+              <span v-if="filterStatus !== 'all'" class="filter-results">
+                {{ filteredImages.length }} resultado(s)
+              </span>
+            </div>
 
-          <!-- Mensaje cuando no hay resultados del filtro -->
-          <div v-if="filteredImages.length === 0" class="no-images">
-            <i class="fas fa-filter"></i>
-            <p>No hay imágenes que coincidan con el filtro seleccionado</p>
-            <button @click="filterStatus = 'all'" class="btn btn-secondary">
-              Limpiar filtro
+            <!-- Mensaje cuando no hay resultados del filtro -->
+            <div v-if="filteredImages.length === 0" class="no-images">
+              <i class="fas fa-filter"></i>
+              <p>No hay imágenes que coincidan con el filtro seleccionado</p>
+              <button @click="filterStatus = 'all'" class="btn btn-secondary">
+                Limpiar filtro
+              </button>
+            </div>
+
+            <!-- Grid de imágenes filtradas -->
+            <div v-else class="images-container">
+              <div class="image-grid">
+                <div 
+                  v-for="image in paginatedImages" 
+                  :key="image._id" 
+                  class="image-card"
+                  @click="openAnnotator(image)"
+                >
+                  <img 
+                    :src="`http://localhost:5000/api/images/${image._id}/data`" 
+                    :alt="image.filename"
+                    @error="handleImageError"
+                  />
+                  <div class="image-info">
+                    <p class="filename">{{ image.filename }}</p>
+                    <p class="annotations-count">
+                      {{ getAnnotationCount(image) }} annotations
+                    </p>
+                  </div>
+                  <div class="image-actions">
+                    <button @click.stop="deleteImage(image)" class="btn-icon delete">
+                      <i class="fas fa-trash"></i>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Paginación fija al final -->
+        <div v-if="!loading && images.length > 0 && filteredImages.length > 0 && totalPages > 1" class="pagination-container">
+          <div class="pagination">
+            <button 
+              @click="goToPage(currentPage - 1)"
+              :disabled="currentPage === 1"
+              class="pagination-btn"
+            >
+              « Anterior
+            </button>
+            
+            <div class="page-numbers">
+              <button
+                v-for="page in visiblePages"
+                :key="page"
+                @click="goToPage(page)"
+                :class="['page-btn', { active: page === currentPage }]"
+              >
+                {{ page }}
+              </button>
+            </div>
+            
+            <button 
+              @click="goToPage(currentPage + 1)"
+              :disabled="currentPage === totalPages"
+              class="pagination-btn"
+            >
+              Siguiente »
             </button>
           </div>
 
-          <!-- Grid de imágenes filtradas -->
-          <div v-else class="image-grid">
-            <div 
-              v-for="image in filteredImages" 
-              :key="image._id" 
-              class="image-card"
-              @click="openAnnotator(image)"
-            >
-              <img 
-                :src="`http://localhost:5000/api/images/${image._id}/data`" 
-                :alt="image.filename"
-                @error="handleImageError"
-              />
-              <div class="image-info">
-                <p class="filename">{{ image.filename }}</p>
-                <p class="annotations-count">
-                  {{ getAnnotationCount(image) }} annotations
-                </p>
-              </div>
-              <div class="image-actions">
-                <button @click.stop="deleteImage(image)" class="btn-icon delete">
-                  <i class="fas fa-trash"></i>
-                </button>
-              </div>
-            </div>
+          <!-- Información de página actual -->
+          <div v-if="filteredImages.length > 0" class="page-info">
+            <span>Página {{ currentPage }} de {{ totalPages }}</span>
+            <span class="separator">•</span>
+            <span>Mostrando {{ startIndex + 1 }}-{{ Math.min(endIndex, filteredImages.length) }} de {{ filteredImages.length }} imágenes</span>
           </div>
         </div>
       </div>
@@ -237,7 +312,15 @@ export default {
       showImportModal: false,
       showExportModal: false,
       selectedImage: null,
-      filterStatus: 'all'
+      filterStatus: 'all',
+      filterOptions: [
+        { value: 'all', label: 'Todas las imágenes' },
+        { value: 'with-annotations', label: 'Con anotaciones' },
+        { value: 'no-annotations', label: 'Sin anotaciones' }
+      ],
+      isFilterDropdownOpen: false,
+      currentPage: 1,
+      imagesPerPage: 24
     }
   },
   computed: {
@@ -267,16 +350,50 @@ export default {
     },
     imagesWithoutAnnotationsCount() {
       return this.images.filter(image => this.getAnnotationCount(image) === 0).length
+    },
+    totalPages() {
+      return Math.ceil(this.filteredImages.length / this.imagesPerPage)
+    },
+    startIndex() {
+      return (this.currentPage - 1) * this.imagesPerPage
+    },
+    endIndex() {
+      return this.startIndex + this.imagesPerPage
+    },
+    paginatedImages() {
+      return this.filteredImages.slice(this.startIndex, this.endIndex)
+    },
+    visiblePages() {
+      const pages = []
+      const start = Math.max(1, this.currentPage - 2)
+      const end = Math.min(this.totalPages, this.currentPage + 2)
+      
+      for (let i = start; i <= end; i++) {
+        pages.push(i)
+      }
+      return pages
+    },
+    filterStatusLabel() {
+      const match = this.filterOptions.find(option => option.value === this.filterStatus)
+      return match ? match.label : 'Filtrar'
     }
   },
   mounted() {
     // Establecer contexto del dataset y cargar datos
     this.store.setCurrentDataset(this.dataset)
     this.loadDatasetData()
+    document.addEventListener('click', this.handleClickOutside)
   },
   beforeUnmount() {
     // Limpiar contexto al salir
     this.store.clearDatasetContext()
+    document.removeEventListener('click', this.handleClickOutside)
+  },
+  watch: {
+    filterStatus() {
+      // Resetear a la primera página cuando cambie el filtro
+      this.currentPage = 1
+    }
   },
   methods: {
     async loadDatasetData() {
@@ -342,6 +459,27 @@ export default {
       console.error('Error loading image:', event.target.src)
       event.target.style.display = 'none'
     },
+
+    toggleFilterDropdown() {
+      this.isFilterDropdownOpen = !this.isFilterDropdownOpen
+    },
+
+    selectFilterOption(value) {
+      if (this.filterStatus !== value) {
+        this.filterStatus = value
+      }
+      this.isFilterDropdownOpen = false
+    },
+
+    handleClickOutside(event) {
+      const dropdown = this.$refs.filterDropdown
+      if (!dropdown) {
+        return
+      }
+      if (!dropdown.contains(event.target)) {
+        this.isFilterDropdownOpen = false
+      }
+    },
     
     async openAnnotator(image) {
       this.selectedImage = image
@@ -375,6 +513,17 @@ export default {
     
     goBack() {
       this.$emit('go-back')
+    },
+    
+    goToPage(page) {
+      if (page >= 1 && page <= this.totalPages) {
+        this.currentPage = page
+        // Scroll hacia arriba cuando cambie de página
+        const contentArea = this.$el.querySelector('.content-area')
+        if (contentArea) {
+          contentArea.scrollTop = 0
+        }
+      }
     },
     
     // Métodos para herramientas de IA
@@ -436,7 +585,7 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
+  padding: 12px 20px;
   background: #f8f9fa;
   border-bottom: 1px solid #dee2e6;
 }
@@ -451,26 +600,26 @@ export default {
   background: rgba(255, 255, 255, 0.95);
   border: 1px solid rgba(108, 117, 125, 0.3);
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: #495057;
-  padding: 0.65rem 1rem;
-  border-radius: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
   margin-right: 1rem;
   font-weight: 500;
 }
 
 .back-btn .fas {
-  font-size: 0.85rem;
+  font-size: 0.8rem;
 }
 
 .back-text {
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   letter-spacing: 0.02em;
 }
 
@@ -490,26 +639,50 @@ export default {
 .dataset-info h1 {
   margin: 0;
   color: #333;
-  font-size: 1.8rem;
+  font-size: 1.5rem;
+  line-height: 1.2;
 }
 
 .dataset-info p {
-  margin: 5px 0 0 0;
+  margin: 2px 0 0 0;
   color: #6c757d;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .header-actions .btn {
-  padding: 10px 20px;
+  padding: 8px 14px;
   border: none;
   border-radius: 5px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+}
+
+.header-actions .btn i {
+  font-size: 14px;
+}
+
+.header-actions .btn-text {
+  display: inline;
+}
+
+@media (max-width: 1200px) {
+  .header-actions .btn-text {
+    display: none;
+  }
+  
+  .header-actions .btn {
+    padding: 8px 12px;
+  }
 }
 
 .btn-success {
@@ -520,7 +693,6 @@ export default {
 .btn-info {
   background-color: #17a2b8;
   color: white;
-  margin-right: 10px;
 }
 
 .btn-info:hover {
@@ -530,7 +702,6 @@ export default {
 .btn-warning {
   background-color: #ff9800;
   color: white;
-  margin-right: 10px;
 }
 
 .btn-warning:hover {
@@ -600,43 +771,165 @@ export default {
 
 .main-content {
   flex: 1;
-  padding: 20px;
+  padding: 15px;
+  display: flex;
+  flex-direction: column;
+}
+
+.content-area {
+  flex: 1;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.images-container {
+  flex: 1;
+  display: flex;
+}
+
+.pagination-container {
+  flex-shrink: 0;
+  background: white;
+  border-top: 1px solid #dee2e6;
+  padding-top: 10px;
 }
 
 .filter-bar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  background: #f1f3f5;
-  border: 1px solid #dee2e6;
-  border-radius: 8px;
+  gap: 16px;
+  background: #ffffff;
+  border: 1px solid #e9ecef;
+  border-radius: 12px;
   padding: 12px 16px;
-  margin-bottom: 20px;
+  margin-bottom: 15px;
   color: #495057;
+  flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
 }
 
-.filter-bar label {
+.filter-label {
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.95rem;
+  color: #343a40;
+}
+
+.filter-select-wrapper {
+  position: relative;
+  flex: 0 0 260px;
 }
 
 .filter-select {
-  flex: 0 0 230px;
-  padding: 8px 12px;
-  border: 1px solid #ced4da;
-  border-radius: 6px;
-  background: white;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+  border: 2px solid #e9ecef;
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 0.95rem;
+  font-weight: 500;
   color: #495057;
-  font-size: 0.9rem;
   cursor: pointer;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  transition: all 0.25s ease;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+  background-clip: padding-box;
 }
 
-.filter-select:focus {
+.filter-select:hover,
+.filter-select.open {
+  border-color: #4a90e2;
+  box-shadow: 0 6px 18px rgba(74, 144, 226, 0.18);
+  transform: translateY(-1px);
+}
+
+.filter-select:focus-visible {
   outline: none;
-  border-color: #3498db;
-  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.15);
+  border-color: #4a90e2;
+  box-shadow: 0 0 0 4px rgba(74, 144, 226, 0.15), 0 6px 18px rgba(74, 144, 226, 0.18);
+}
+
+.filter-select__value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.filter-select .dropdown-icon {
+  font-size: 0.75rem;
+  color: #4a90e2;
+  transition: transform 0.25s ease;
+}
+
+.filter-select.open .dropdown-icon {
+  transform: rotate(-180deg);
+}
+
+.filter-options {
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  right: 0;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
+  list-style: none;
+  margin: 0;
+  padding: 8px;
+  z-index: 25;
+  animation: dropdown-fade 0.18s ease;
+}
+
+.filter-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  color: #4a4a4a;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.filter-option + .filter-option {
+  margin-top: 4px;
+}
+
+.filter-option:hover {
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  color: #2c3e50;
+  transform: translateX(2px);
+}
+
+.filter-option.active {
+  background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+  color: #ffffff;
+  box-shadow: 0 8px 16px rgba(74, 144, 226, 0.25);
+}
+
+.filter-option.active i {
+  color: inherit;
+}
+
+.filter-option i {
+  font-size: 0.75rem;
+  color: #adb5bd;
+}
+
+@keyframes dropdown-fade {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .filter-results {
@@ -671,30 +964,51 @@ export default {
 
 .no-images {
   text-align: center;
-  padding: 60px 20px;
+  padding: 40px 20px; /* Padding reducido */
   color: #6c757d;
 }
 
 .no-images i {
-  font-size: 4rem;
-  margin-bottom: 20px;
+  font-size: 3rem; /* Icono más pequeño */
+  margin-bottom: 15px; /* Margen reducido */
   color: #dee2e6;
 }
 
 .image-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  width: 100%;
+  padding: 10px 0;
+}
+
+/* Ajustes para pantallas muy anchas */
+@media (min-width: 1800px) {
+  .image-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 15px;
+  }
+}
+
+/* Para pantallas estándar, mantener tarjetas pequeñas */
+@media (max-width: 1600px) and (min-width: 1200px) {
+  .image-grid {
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 10px;
+  }
 }
 
 .image-card {
   background: white;
-  border-radius: 8px;
+  border-radius: 6px;
   border: 1px solid #dee2e6;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.3s ease;
   position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 200px;
 }
 
 .image-card:hover {
@@ -704,28 +1018,36 @@ export default {
 
 .image-card img {
   width: 100%;
-  height: 150px;
+  height: 140px;
   object-fit: cover;
+  flex-shrink: 0;
 }
 
 .image-info {
-  padding: 12px;
+  padding: 6px 8px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: white;
 }
 
 .filename {
   font-weight: 500;
-  margin: 0 0 5px 0;
-  font-size: 0.9rem;
+  margin: 0 0 2px 0;
+  font-size: 0.75rem;
   color: #333;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.2;
 }
 
 .annotations-count {
   margin: 0;
   color: #6c757d;
-  font-size: 0.8rem;
+  font-size: 0.7rem;
+  line-height: 1.2;
 }
 
 .image-actions {
@@ -738,13 +1060,15 @@ export default {
   background: rgba(0,0,0,0.5);
   border: none;
   border-radius: 50%;
-  width: 32px;
-  height: 32px;
+  width: 26px;
+  height: 26px;
+  color: white;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
   transition: all 0.3s ease;
+  font-size: 0.7rem;
 }
 
 .btn-icon.delete {
@@ -859,5 +1183,116 @@ export default {
   border-left: 1px solid #dee2e6;
   overflow-y: auto;
   flex-shrink: 0;
+}
+
+/* Paginación */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+}
+
+.pagination-btn {
+  background: #3498db;
+  color: white;
+  border: none;
+  padding: 0.4rem 0.8rem; /* Más compacto */
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem; /* Texto más pequeño */
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.pagination-btn:disabled {
+  background: #bdc3c7;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: #2980b9;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+}
+
+.page-numbers {
+  display: flex;
+  gap: 0.25rem;
+}
+
+.page-btn {
+  background: white;
+  color: #3498db;
+  border: 1px solid #3498db;
+  padding: 0.4rem 0.6rem; /* Más compacto */
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.8rem; /* Texto más pequeño */
+  font-weight: 500;
+  min-width: 36px; /* Más pequeño */
+  transition: all 0.2s ease;
+}
+
+.page-btn:hover {
+  background: #3498db;
+  color: white;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+}
+
+.page-btn.active {
+  background: #3498db;
+  color: white;
+  box-shadow: 0 2px 5px rgba(52, 152, 219, 0.3);
+}
+
+.page-info {
+  text-align: center;
+  color: #6c757d;
+  font-size: 0.8rem; /* Texto más pequeño */
+  padding: 0.3rem 0 0; /* Padding reducido */
+  margin: 0;
+}
+
+.page-info .separator {
+  margin: 0 0.5rem;
+  color: #bdc3c7;
+}
+
+/* Media queries adicionales para optimizar la distribución */
+@media (max-width: 1200px) {
+  .image-grid {
+    grid-template-columns: repeat(6, 1fr); /* 6 columnas: 3-4 filas */
+    gap: 8px;
+  }
+  
+  .image-card {
+    min-height: 140px;
+    max-height: 180px;
+  }
+}
+
+@media (max-width: 900px) {
+  .image-grid {
+    grid-template-columns: repeat(5, 1fr); /* 5 columnas: 4-5 filas */
+    gap: 6px;
+  }
+  
+  .image-card {
+    min-height: 120px;
+    max-height: 160px;
+  }
+  
+  .filename {
+    font-size: 0.75rem;
+  }
+  
+  .annotations-count {
+    font-size: 0.7rem;
+  }
 }
 </style>
