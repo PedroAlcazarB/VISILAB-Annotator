@@ -88,14 +88,15 @@
               class="btn-edit"
               title="Editar categoría"
             >
-              ✏️
+              <i class="fas fa-edit"></i>
             </button>
             <button 
               @click.stop="toggleVisibility(category.id)" 
               class="btn-visibility"
               :title="isHidden(category.id) ? 'Mostrar categoría' : 'Ocultar categoría'"
             >
-              👁️
+              <i v-if="isHidden(category.id)" class="fa-solid fa-eye-slash"></i>
+              <i v-else class="fa-solid fa-eye"></i>
             </button>
           </div>
         </div>
@@ -120,7 +121,8 @@
                 class="btn-visibility-small"
                 :title="isAnnotationHidden(annotation._id) ? 'Mostrar anotación' : 'Ocultar anotación'"
               >
-                👁️
+                <i v-if="isAnnotationHidden(annotation._id)" class="fa-solid fa-eye-slash"></i>
+                <i v-else class="fa-solid fa-eye"></i>
               </button>
             </div>
           </div>
@@ -668,8 +670,13 @@ watch(showImportModal, (newValue) => {
 
 .category-count {
   color: #666;
-  font-size: 0.85rem;
+  font-size: 1rem;
   margin-left: 0.5rem;
+  margin-right: 1rem;
+  display: flex;
+  align-items: center;
+  line-height: 1;
+  transform: translateY(-1px);
 }
 
 .category-actions {
