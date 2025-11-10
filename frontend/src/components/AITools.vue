@@ -297,17 +297,11 @@ export default {
     async loadSavedModelsList() {
       this.isLoadingSavedModels = true
       try {
-        const response = await fetch('http://localhost:5000/api/ai/saved-models')
-        const result = await response.json()
-        
-        if (response.ok) {
-          this.preloadedModels = result.preloaded || []
-          this.customModels = result.custom || []
-        } else {
-          console.error('Error al cargar modelos guardados:', result.error)
-        }
+        const result = await this.$apiGet('/api/ai/saved-models')
+        this.preloadedModels = result.preloaded || []
+        this.customModels = result.custom || []
       } catch (error) {
-        console.error('Error de conexión al cargar modelos:', error)
+        console.error('Error al cargar modelos guardados:', error)
       } finally {
         this.isLoadingSavedModels = false
       }
@@ -328,41 +322,32 @@ export default {
       this.modelError = null
       
       try {
-        const response = await fetch('http://localhost:5000/api/ai/load-saved-model', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            model_id: this.selectedSavedModel,
-            dataset_id: this.datasetId
-          })
+        const result = await this.$apiPost('/api/ai/load-saved-model', {
+          model_id: this.selectedSavedModel,
+          dataset_id: this.datasetId
         })
         
-        const result = await response.json()
-        
-        if (response.ok) {
-          this.isModelLoaded = true
-          this.loadedModelName = result.model_info.name
-          this.loadedModelId = result.model_info.id
-          this.modelCategories = result.categories || []
-          
-          // Si se crearon categorías, recargar las categorías del store
-          if (result.created_categories && result.created_categories.length > 0) {
-            await this.store.loadCategories(this.datasetId)
-            console.log(`Se crearon ${result.created_categories.length} categorías automáticamente`)
-          }
-          
-          this.$emit('model-loaded', {
-            name: this.loadedModelName,
-            categories: this.modelCategories
-          })
-        } else {
-          this.modelError = result.error || 'Error al cargar el modelo guardado'
+        this.isModelLoaded = true
+        this.loadedModelName = result.model_info.name
+        this.loadedModelId = result.model_info.id
+        this.modelCategories = result.categories || []
+
+        const createdCount = result.created_categories ? result.created_categories.length : 0
+        if (this.datasetId) {
+          await this.store.loadCategories(this.datasetId)
         }
+
+        if (createdCount > 0) {
+          console.log(`Se crearon ${createdCount} categorías automáticamente`)
+        }
+        
+        this.$emit('model-loaded', {
+          name: this.loadedModelName,
+          categories: this.modelCategories
+        })
       } catch (error) {
         console.error('Error loading saved model:', error)
-        this.modelError = 'Error de conexión al cargar el modelo guardado'
+        this.modelError = error.message || 'Error al cargar el modelo guardado'
       } finally {
         this.isLoadingModel = false
       }
@@ -370,22 +355,18 @@ export default {
     
     async unloadModel() {
       try {
-        const response = await fetch('http://localhost:5000/api/ai/unload-model', {
-          method: 'POST'
-        })
+        await this.$apiPost('/api/ai/unload-model', {})
         
-        if (response.ok) {
-          this.isModelLoaded = false
-          this.loadedModelName = ''
-          this.loadedModelId = null
-          this.modelCategories = []
-          this.lastPrediction = null
-          this.selectedSavedModel = ''
-          
-          // Las anotaciones se manejan automáticamente por el store
-          
-          this.$emit('model-unloaded')
-        }
+        this.isModelLoaded = false
+        this.loadedModelName = ''
+        this.loadedModelId = null
+        this.modelCategories = []
+        this.lastPrediction = null
+        this.selectedSavedModel = ''
+        
+        // Las anotaciones se manejan automáticamente por el store
+        
+        this.$emit('model-unloaded')
       } catch (error) {
         console.error('Error unloading model:', error)
       }
@@ -397,65 +378,50 @@ export default {
       this.isPredicting = true
       
       try {
-        const response = await fetch('http://localhost:5000/api/ai/predict', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            image_id: this.currentImage._id,
-            confidence: this.confidence
-          })
+        const result = await this.$apiPost('/api/ai/predict', {
+          image_id: this.currentImage._id,
+          confidence: this.confidence
         })
         
-        const result = await response.json()
+        this.lastPrediction = result
         
-        if (response.ok) {
-          this.lastPrediction = result
-          
-          // Las predicciones ahora se guardan automáticamente como anotaciones en el backend
-          // Solo necesitamos notificar que se crearon nuevas anotaciones
-          const detectionCount = result.detections ? result.detections.length : 0
-          const annotationsCreated = result.annotations ? result.annotations.length : 0
-          
-          // Emitir evento para refrescar las anotaciones en el canvas
-          this.$emit('annotations-updated', {
-            annotations: result.annotations || [],
-            created_categories: result.created_categories || [],
-            message: result.message || `Se crearon ${annotationsCreated} anotaciones de ${detectionCount} detecciones.`
-          })
-          
-          // Log para depuración
-          console.log(`Predicción completada: ${detectionCount} detecciones encontradas, ${annotationsCreated} anotaciones creadas automáticamente`)
-          
-          // Mostrar mensaje informativo si se crearon categorías
-          if (result.created_categories && result.created_categories.length > 0) {
-            const categoryNames = result.created_categories.map(cat => cat.name).join(', ')
-            console.log(`Se crearon automáticamente las categorías: ${categoryNames}`)
-          }
-          
-        } else {
-          console.error('Prediction error:', result.error)
-          
-          // Mostrar error más detallado
-          let errorMessage = 'Error en la predicción'
-          if (result.error) {
-            if (result.error.includes('bytes-like object is required')) {
-              errorMessage = 'Error de formato de imagen. La imagen puede estar corrupta.'
-            } else if (result.error.includes('No hay modelo cargado')) {
-              errorMessage = 'No hay modelo cargado. Por favor, carga un modelo primero.'
-            } else if (result.error.includes('No se pueden crear anotaciones sin categorías')) {
-              errorMessage = 'No hay categorías disponibles. Las categorías del modelo se crearán automáticamente en la primera predicción.'
-            } else {
-              errorMessage = result.error
-            }
-          }
-          
-          alert(errorMessage)
+        // Las predicciones ahora se guardan automáticamente como anotaciones en el backend
+        // Solo necesitamos notificar que se crearon nuevas anotaciones
+        const detectionCount = result.detections ? result.detections.length : 0
+        const annotationsCreated = result.annotations ? result.annotations.length : 0
+        
+        // Emitir evento para refrescar las anotaciones en el canvas
+        this.$emit('annotations-updated', {
+          annotations: result.annotations || [],
+          created_categories: result.created_categories || [],
+          message: result.message || `Se crearon ${annotationsCreated} anotaciones de ${detectionCount} detecciones.`
+        })
+        
+        // Log para depuración
+        console.log(`Predicción completada: ${detectionCount} detecciones encontradas, ${annotationsCreated} anotaciones creadas automáticamente`)
+        
+        // Mostrar mensaje informativo si se crearon categorías
+        if (result.created_categories && result.created_categories.length > 0) {
+          const categoryNames = result.created_categories.map(cat => cat.name).join(', ')
+          console.log(`Se crearon automáticamente las categorías: ${categoryNames}`)
         }
       } catch (error) {
         console.error('Error predicting image:', error)
-        alert('Error de conexión durante la predicción. Verifica que el servidor esté funcionando.')
+        
+        // Mostrar error más detallado
+        let errorMessage = 'Error en la predicción'
+        const errorStr = error.message || ''
+        if (errorStr.includes('bytes-like object is required')) {
+          errorMessage = 'Error de formato de imagen. La imagen puede estar corrupta.'
+        } else if (errorStr.includes('No hay modelo cargado')) {
+          errorMessage = 'No hay modelo cargado. Por favor, carga un modelo primero.'
+        } else if (errorStr.includes('No se pueden crear anotaciones sin categorías')) {
+          errorMessage = 'No hay categorías disponibles. Las categorías del modelo se crearán automáticamente en la primera predicción.'
+        } else {
+          errorMessage = errorStr || 'Error de conexión durante la predicción.'
+        }
+        
+        alert(errorMessage)
       } finally {
         this.isPredicting = false
       }

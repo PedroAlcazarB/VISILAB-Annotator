@@ -140,14 +140,8 @@ export default {
         this.loading = true
         this.loadingMessage = 'Loading datasets...'
         
-        const response = await fetch('http://localhost:5000/api/datasets')
-        const data = await response.json()
-        
-        if (response.ok) {
-          this.datasets = data.datasets || []
-        } else {
-          console.error('Error loading datasets:', data.error)
-        }
+        const data = await this.$apiGet('/api/datasets')
+        this.datasets = data.datasets || []
       } catch (error) {
         console.error('Error loading datasets:', error)
       } finally {
@@ -165,23 +159,10 @@ export default {
         this.loading = true
         this.loadingMessage = 'Creating dataset...'
         
-        const response = await fetch('http://localhost:5000/api/datasets', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(this.newDataset)
-        })
-        
-        const data = await response.json()
-        
-        if (response.ok) {
-          this.closeModal()
-          await this.loadDatasets()
-          alert('✅ Dataset creado exitosamente')
-        } else {
-          alert('❌ Error al crear dataset: ' + data.error)
-        }
+        await this.$apiPost('/api/datasets', this.newDataset)
+        this.closeModal()
+        await this.loadDatasets()
+        alert('✅ Dataset creado exitosamente')
       } catch (error) {
         console.error('Error creating dataset:', error)
         alert('❌ Error al crear dataset')
@@ -199,16 +180,8 @@ export default {
         this.loading = true
         this.loadingMessage = 'Deleting dataset...'
         
-        const response = await fetch(`http://localhost:5000/api/datasets/${dataset._id}`, {
-          method: 'DELETE'
-        })
-        
-        if (response.ok) {
-          await this.loadDatasets()
-        } else {
-          const data = await response.json()
-          alert('Error deleting dataset: ' + data.error)
-        }
+        await this.$apiDelete(`/api/datasets/${dataset._id}`)
+        await this.loadDatasets()
       } catch (error) {
         console.error('Error deleting dataset:', error)
         alert('Error deleting dataset')

@@ -1,18 +1,25 @@
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
+from flask_bcrypt import Bcrypt
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 from bson.errors import InvalidId
 import os
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import base64
 from PIL import Image
 import io
 import zipfile
+import jwt
+from functools import wraps
 
 app = Flask(__name__)
 CORS(app)
+bcrypt = Bcrypt(app)
+
+# Clave secreta para JWT (en producción, usar variable de entorno)
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
 
 # Configuración de MongoDB
 MONGO_URI = os.getenv('MONGO_URI', 'mongodb://mongo:27017/')
@@ -28,6 +35,172 @@ def serialize_doc(doc):
     if doc and '_id' in doc:
         doc['_id'] = str(doc['_id'])
     return doc
+
+# ==================== AUTENTICACIÓN Y AUTORIZACIÓN ====================
+
+def token_required(f):
+    """Decorador para proteger rutas que requieren autenticación"""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        token = None
+        
+        # Obtener token del header Authorization
+        if 'Authorization' in request.headers:
+            auth_header = request.headers['Authorization']
+            try:
+                token = auth_header.split(' ')[1]  # Bearer <token>
+            except IndexError:
+                return jsonify({'error': 'Token mal formado'}), 401
+        
+        if not token:
+            return jsonify({'error': 'Token no proporcionado'}), 401
+        
+        try:
+            # Decodificar token
+            data = jwt.decode(token, app.config['SECRET_KEY'], algorithms=['HS256'])
+            current_user_id = data['user_id']
+            
+            # Verificar que el usuario existe
+            db = get_db()
+            user = db.users.find_one({'_id': ObjectId(current_user_id)})
+            if not user:
+                return jsonify({'error': 'Usuario no encontrado'}), 401
+            
+            # Pasar el user_id a la función
+            return f(current_user_id, *args, **kwargs)
+        
+        except jwt.ExpiredSignatureError:
+            return jsonify({'error': 'Token expirado'}), 401
+        except jwt.InvalidTokenError:
+            return jsonify({'error': 'Token inválido'}), 401
+        except Exception as e:
+            return jsonify({'error': f'Error de autenticación: {str(e)}'}), 401
+    
+    return decorated
+
+@app.route('/api/auth/register', methods=['POST'])
+def register():
+    """Registrar un nuevo usuario"""
+    try:
+        data = request.get_json()
+        
+        # Validar datos requeridos
+        if not data or not data.get('username') or not data.get('password'):
+            return jsonify({'error': 'Username y password son requeridos'}), 400
+        
+        username = data['username'].strip()
+        password = data['password']
+        full_name = data.get('full_name', '').strip()
+        
+        # Validar longitud
+        if len(username) < 3:
+            return jsonify({'error': 'El username debe tener al menos 3 caracteres'}), 400
+        if len(password) < 6:
+            return jsonify({'error': 'El password debe tener al menos 6 caracteres'}), 400
+        
+        db = get_db()
+        
+        # Verificar si el usuario ya existe
+        if db.users.find_one({'username': username}):
+            return jsonify({'error': 'El usuario ya existe'}), 409
+        
+        # Hash del password
+        hashed_password = bcrypt.generate_password_hash(password).decode('utf-8')
+        
+        # Crear usuario
+        user_doc = {
+            'username': username,
+            'password': hashed_password,
+            'full_name': full_name,
+            'created_at': datetime.utcnow(),
+            'is_admin': False
+        }
+        
+        result = db.users.insert_one(user_doc)
+        user_id = str(result.inserted_id)
+        
+        # Generar token
+        token = jwt.encode({
+            'user_id': user_id,
+            'exp': datetime.utcnow() + timedelta(days=7)
+        }, app.config['SECRET_KEY'], algorithm='HS256')
+        
+        return jsonify({
+            'message': 'Usuario registrado exitosamente',
+            'token': token,
+            'user': {
+                'id': user_id,
+                'username': username,
+                'full_name': full_name
+            }
+        }), 201
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al registrar usuario: {str(e)}'}), 500
+
+@app.route('/api/auth/login', methods=['POST'])
+def login():
+    """Iniciar sesión"""
+    try:
+        data = request.get_json()
+        
+        if not data or not data.get('username') or not data.get('password'):
+            return jsonify({'error': 'Username y password son requeridos'}), 400
+        
+        username = data['username'].strip()
+        password = data['password']
+        
+        db = get_db()
+        user = db.users.find_one({'username': username})
+        
+        if not user:
+            return jsonify({'error': 'Credenciales inválidas'}), 401
+        
+        # Verificar password
+        if not bcrypt.check_password_hash(user['password'], password):
+            return jsonify({'error': 'Credenciales inválidas'}), 401
+        
+        # Generar token
+        token = jwt.encode({
+            'user_id': str(user['_id']),
+            'exp': datetime.utcnow() + timedelta(days=7)
+        }, app.config['SECRET_KEY'], algorithm='HS256')
+        
+        return jsonify({
+            'message': 'Login exitoso',
+            'token': token,
+            'user': {
+                'id': str(user['_id']),
+                'username': user['username'],
+                'full_name': user.get('full_name', '')
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al iniciar sesión: {str(e)}'}), 500
+
+@app.route('/api/auth/verify', methods=['GET'])
+@token_required
+def verify_token(current_user_id):
+    """Verificar si un token es válido y obtener información del usuario"""
+    try:
+        db = get_db()
+        user = db.users.find_one({'_id': ObjectId(current_user_id)})
+        
+        if not user:
+            return jsonify({'error': 'Usuario no encontrado'}), 404
+        
+        return jsonify({
+            'valid': True,
+            'user': {
+                'id': str(user['_id']),
+                'username': user['username'],
+                'full_name': user.get('full_name', '')
+            }
+        }), 200
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al verificar token: {str(e)}'}), 500
 
 # ==================== FUNCIONES AUXILIARES PARA PROCESAMIENTO DE IMÁGENES ====================
 
@@ -154,7 +327,8 @@ os.makedirs(IMAGE_FOLDER, exist_ok=True)
 # ==================== ENDPOINTS PARA IMÁGENES ====================
 
 @app.route('/api/images', methods=['POST'])
-def upload_image():
+@token_required
+def upload_image(current_user_id):
     """Subir una nueva imagen y guardarla en MongoDB"""
     if 'image' not in request.files:
         return jsonify({'error': 'No se encontró ninguna imagen'}), 400
@@ -167,13 +341,15 @@ def upload_image():
         db = get_db()
         dataset_id = request.form.get('dataset_id')
         
-        # Si hay dataset_id, obtener el nombre del dataset para crear la ruta correcta
+        # Si hay dataset_id, verificar que pertenece al usuario y obtener el nombre del dataset
         dataset_folder_path = IMAGE_FOLDER  # Por defecto en la carpeta principal
         if dataset_id:
-            dataset = db.datasets.find_one({'_id': ObjectId(dataset_id)})
+            dataset = db.datasets.find_one({'_id': ObjectId(dataset_id), 'user_id': current_user_id})
             if dataset:
                 dataset_folder_path = os.path.join(IMAGE_FOLDER, dataset['name'])
                 os.makedirs(dataset_folder_path, exist_ok=True)
+            else:
+                return jsonify({'error': 'Dataset no encontrado o no autorizado'}), 403
         
         # Leer la imagen como bytes
         image_data = image.read()
@@ -205,7 +381,8 @@ def upload_image():
             'height': height,
             'upload_date': datetime.utcnow(),
             'dataset_id': dataset_id,
-            'project_id': request.form.get('project_id', 'default')  # Mantener para compatibilidad
+            'project_id': request.form.get('project_id', 'default'),  # Mantener para compatibilidad
+            'user_id': current_user_id  # Asociar imagen al usuario
         }
         
         # Insertar en MongoDB
@@ -221,15 +398,16 @@ def upload_image():
         return jsonify({'error': f'Error al subir imagen: {str(e)}'}), 500
 
 @app.route('/api/images', methods=['GET'])
-def get_images():
-    """Obtener lista de todas las imágenes"""
+@token_required
+def get_images(current_user_id):
+    """Obtener lista de todas las imágenes del usuario"""
     try:
         db = get_db()
         dataset_id = request.args.get('dataset_id')
         project_id = request.args.get('project_id', 'default')
         
-        # Construir filtro
-        query_filter = {}
+        # Construir filtro - siempre filtrar por usuario
+        query_filter = {'user_id': current_user_id}
         if dataset_id:
             query_filter['dataset_id'] = dataset_id
         else:
@@ -243,7 +421,7 @@ def get_images():
         # Agregar contador de anotaciones para cada imagen
         for image in images:
             image_id = str(image['_id'])
-            annotation_count = db.annotations.count_documents({'image_id': image_id})
+            annotation_count = db.annotations.count_documents({'image_id': image_id, 'user_id': current_user_id})
             image['annotation_count'] = annotation_count
         
         return jsonify({
@@ -251,8 +429,11 @@ def get_images():
         })
         
     except Exception as e:
-        return jsonify({'error': f'Error al obtener imágenes: {str(e)}'}), 500@app.route('/api/images/<image_id>', methods=['GET'])
-def get_image(image_id):
+        return jsonify({'error': f'Error al obtener imágenes: {str(e)}'}), 500
+
+@app.route('/api/images/<image_id>', methods=['GET'])
+@token_required
+def get_image(current_user_id, image_id):
     """Obtener una imagen específica"""
     try:
         db = get_db()
@@ -260,7 +441,7 @@ def get_image(image_id):
         if not ObjectId.is_valid(image_id):
             return jsonify({'error': 'ID de imagen inválido'}), 400
             
-        image_doc = db.images.find_one({'_id': ObjectId(image_id)})
+        image_doc = db.images.find_one({'_id': ObjectId(image_id), 'user_id': current_user_id})
         
         if not image_doc:
             return jsonify({'error': 'Imagen no encontrada'}), 404
@@ -281,6 +462,7 @@ def get_image_data(image_id):
         if not ObjectId.is_valid(image_id):
             return jsonify({'error': 'ID de imagen inválido'}), 400
             
+        # Obtener la imagen sin verificar usuario (las imágenes son públicas para visualización)
         image_doc = db.images.find_one({'_id': ObjectId(image_id)})
         
         if not image_doc:
@@ -300,7 +482,8 @@ def get_image_data(image_id):
         return jsonify({'error': f'Error al servir imagen: {str(e)}'}), 500
 
 @app.route('/api/images/<image_id>', methods=['DELETE'])
-def delete_image(image_id):
+@token_required
+def delete_image(current_user_id, image_id):
     """Eliminar una imagen y sus anotaciones"""
     try:
         db = get_db()
@@ -308,10 +491,10 @@ def delete_image(image_id):
         if not ObjectId.is_valid(image_id):
             return jsonify({'error': 'ID de imagen inválido'}), 400
         
-        # Obtener información de la imagen antes de eliminarla
-        image_doc = db.images.find_one({'_id': ObjectId(image_id)})
+        # Obtener información de la imagen antes de eliminarla y verificar propiedad
+        image_doc = db.images.find_one({'_id': ObjectId(image_id), 'user_id': current_user_id})
         if not image_doc:
-            return jsonify({'error': 'Imagen no encontrada'}), 404
+            return jsonify({'error': 'Imagen no encontrada o no autorizada'}), 403
             
         # Eliminar imagen de MongoDB
         result = db.images.delete_one({'_id': ObjectId(image_id)})
@@ -515,7 +698,8 @@ def check_annotation_duplicate_advanced(db, image_id, category_id, category_name
 # ==================== ENDPOINTS PARA ANOTACIONES ====================
 
 @app.route('/api/annotations', methods=['POST'])
-def create_annotation():
+@token_required
+def create_annotation(current_user_id):
     """Crear una nueva anotación"""
     try:
         data = request.get_json()
@@ -528,17 +712,17 @@ def create_annotation():
         
         db = get_db()
         
-        # Obtener información de la imagen para verificar el dataset
-        image_doc = db.images.find_one({'_id': ObjectId(data['image_id'])})
+        # Obtener información de la imagen para verificar el dataset y usuario
+        image_doc = db.images.find_one({'_id': ObjectId(data['image_id']), 'user_id': current_user_id})
         if not image_doc:
-            return jsonify({'error': 'Imagen no encontrada'}), 404
+            return jsonify({'error': 'Imagen no encontrada o no autorizada'}), 404
         
         dataset_id = image_doc.get('dataset_id')
         if not dataset_id:
             return jsonify({'error': 'La imagen debe pertenecer a un dataset'}), 400
         
         # Verificar que existan categorías en el dataset antes de permitir anotaciones
-        categories_count = db.categories.count_documents({'dataset_id': dataset_id})
+        categories_count = db.categories.count_documents({'dataset_id': dataset_id, 'user_id': current_user_id})
         if categories_count == 0:
             return jsonify({
                 'error': 'No se pueden crear anotaciones sin categorías. Primero debe crear al menos una categoría para este dataset.',
@@ -570,7 +754,8 @@ def create_annotation():
             'confidence': data.get('confidence'),  # Solo para predicciones de IA
             'model_name': data.get('model_name'),  # Solo para predicciones de IA
             'created_date': datetime.utcnow(),
-            'modified_date': datetime.utcnow()
+            'modified_date': datetime.utcnow(),
+            'user_id': current_user_id  # Asociar anotación al usuario
         }
         
         # Verificar duplicados antes de crear la anotación
@@ -609,7 +794,8 @@ def create_annotation():
         return jsonify({'error': f'Error al crear anotación: {str(e)}'}), 500
 
 @app.route('/api/annotations', methods=['GET'])
-def get_annotations():
+@token_required
+def get_annotations(current_user_id):
     """Obtener anotaciones de una imagen específica, todas las anotaciones o anotaciones de un dataset"""
     try:
         image_id = request.args.get('image_id')
@@ -618,19 +804,19 @@ def get_annotations():
         db = get_db()
         
         if image_id:
-            # Obtener anotaciones de una imagen específica
-            annotations = list(db.annotations.find({'image_id': image_id}))
+            # Obtener anotaciones de una imagen específica del usuario
+            annotations = list(db.annotations.find({'image_id': image_id, 'user_id': current_user_id}))
         elif dataset_id:
-            # Obtener todas las anotaciones de un dataset específico
-            # Primero obtener todas las imágenes del dataset
-            images = list(db.images.find({'dataset_id': dataset_id}))
+            # Obtener todas las anotaciones de un dataset específico del usuario
+            # Primero obtener todas las imágenes del dataset del usuario
+            images = list(db.images.find({'dataset_id': dataset_id, 'user_id': current_user_id}))
             image_ids = [str(img['_id']) for img in images]
             
-            # Luego obtener anotaciones de esas imágenes
-            annotations = list(db.annotations.find({'image_id': {'$in': image_ids}}))
+            # Luego obtener anotaciones de esas imágenes del usuario
+            annotations = list(db.annotations.find({'image_id': {'$in': image_ids}, 'user_id': current_user_id}))
         else:
-            # Obtener todas las anotaciones
-            annotations = list(db.annotations.find())
+            # Obtener todas las anotaciones del usuario
+            annotations = list(db.annotations.find({'user_id': current_user_id}))
         
         return jsonify({
             'annotations': [serialize_doc(ann) for ann in annotations]
@@ -640,7 +826,8 @@ def get_annotations():
         return jsonify({'error': f'Error al obtener anotaciones: {str(e)}'}), 500
 
 @app.route('/api/annotations/<annotation_id>', methods=['PUT'])
-def update_annotation(annotation_id):
+@token_required
+def update_annotation(current_user_id, annotation_id):
     """Actualizar una anotación existente"""
     try:
         data = request.get_json()
@@ -652,6 +839,16 @@ def update_annotation(annotation_id):
             return jsonify({'error': 'ID de anotación inválido'}), 400
         
         db = get_db()
+        
+        # Verificar que la anotación pertenece a una imagen del usuario
+        annotation = db.annotations.find_one({'_id': ObjectId(annotation_id)})
+        if not annotation:
+            return jsonify({'error': 'Anotación no encontrada'}), 404
+        
+        # Verificar propiedad a través de la imagen
+        image = db.images.find_one({'_id': ObjectId(annotation['image_id']), 'user_id': current_user_id})
+        if not image:
+            return jsonify({'error': 'No autorizado para actualizar esta anotación'}), 403
         
         # Actualizar campos modificables
         update_data = {
@@ -694,17 +891,30 @@ def update_annotation(annotation_id):
         return jsonify({'error': f'Error al actualizar anotación: {str(e)}'}), 500
 
 @app.route('/api/annotations/<annotation_id>', methods=['DELETE'])
-def delete_annotation(annotation_id):
+@token_required
+def delete_annotation(current_user_id, annotation_id):
     """Eliminar una anotación"""
     try:
         if not ObjectId.is_valid(annotation_id):
             return jsonify({'error': 'ID de anotación inválido'}), 400
         
         db = get_db()
+        
+        # Verificar que la anotación pertenece a una imagen del usuario
+        annotation = db.annotations.find_one({'_id': ObjectId(annotation_id)})
+        if not annotation:
+            return jsonify({'error': 'Anotación no encontrada'}), 404
+        
+        # Verificar propiedad a través de la imagen
+        image = db.images.find_one({'_id': ObjectId(annotation['image_id']), 'user_id': current_user_id})
+        if not image:
+            return jsonify({'error': 'No autorizado para eliminar esta anotación'}), 403
+        
+        # Eliminar la anotación
         result = db.annotations.delete_one({'_id': ObjectId(annotation_id)})
         
         if result.deleted_count == 0:
-            return jsonify({'error': 'Anotación no encontrada'}), 404
+            return jsonify({'error': 'Error al eliminar anotación'}), 500
             
         return jsonify({'message': 'Anotación eliminada correctamente'})
         
@@ -712,7 +922,8 @@ def delete_annotation(annotation_id):
         return jsonify({'error': f'Error al eliminar anotación: {str(e)}'}), 500
 
 @app.route('/api/annotations/bulk', methods=['DELETE'])
-def delete_annotations_bulk():
+@token_required
+def delete_annotations_bulk(current_user_id):
     """Eliminar múltiples anotaciones por image_id"""
     try:
         data = request.get_json()
@@ -721,6 +932,13 @@ def delete_annotations_bulk():
             return jsonify({'error': 'image_id es requerido'}), 400
         
         db = get_db()
+        
+        # Verificar que la imagen pertenece al usuario
+        image = db.images.find_one({'_id': ObjectId(data['image_id']), 'user_id': current_user_id})
+        if not image:
+            return jsonify({'error': 'No autorizado para eliminar anotaciones de esta imagen'}), 403
+        
+        # Eliminar anotaciones de la imagen
         result = db.annotations.delete_many({'image_id': data['image_id']})
         
         return jsonify({
@@ -734,24 +952,26 @@ def delete_annotations_bulk():
 # ==================== ENDPOINTS PARA CATEGORÍAS ====================
 
 @app.route('/api/categories', methods=['GET'])
-def get_categories():
-    """Obtener todas las categorías de un dataset específico o de todos los datasets"""
+@token_required
+def get_categories(current_user_id):
+    """Obtener todas las categorías de un dataset específico o de todos los datasets del usuario"""
     try:
         db = get_db()
         dataset_id = request.args.get('dataset_id')
         
-        # Si se proporciona dataset_id, filtrar por ese dataset
-        # Si no, devolver todas las categorías (vista global)
+        # Si se proporciona dataset_id, filtrar por ese dataset y usuario
+        # Si no, devolver todas las categorías del usuario (vista global)
         if dataset_id:
-            categories = list(db.categories.find({'dataset_id': dataset_id}))
+            categories = list(db.categories.find({'dataset_id': dataset_id, 'user_id': current_user_id}))
         else:
-            categories = list(db.categories.find())
+            categories = list(db.categories.find({'user_id': current_user_id}))
         
         # Contar anotaciones por categoría y estandarizar formato
         for category in categories:
             category_id = str(category['_id'])
             # Buscar anotaciones que coincidan con category_id O category
             annotation_count = db.annotations.count_documents({
+                'user_id': current_user_id,
                 '$or': [
                     {'category_id': category_id},
                     {'category': category_id}
@@ -770,7 +990,8 @@ def get_categories():
         return jsonify({'error': f'Error al obtener categorías: {str(e)}'}), 500
 
 @app.route('/api/categories', methods=['POST'])
-def create_category():
+@token_required
+def create_category(current_user_id):
     """Crear una nueva categoría asociada a un dataset específico"""
     try:
         data = request.get_json()
@@ -783,17 +1004,18 @@ def create_category():
         
         db = get_db()
         
-        # Verificar que el dataset existe
-        dataset = db.datasets.find_one({'_id': ObjectId(data['dataset_id'])})
+        # Verificar que el dataset existe y pertenece al usuario
+        dataset = db.datasets.find_one({'_id': ObjectId(data['dataset_id']), 'user_id': current_user_id})
         if not dataset:
-            return jsonify({'error': 'El dataset especificado no existe'}), 404
+            return jsonify({'error': 'El dataset especificado no existe o no tienes acceso'}), 404
         
         # Crear documento de categoría
         category_doc = {
             'name': data['name'],
             'color': data.get('color', '#00ff00'),
             'dataset_id': data['dataset_id'],
-            'created_date': datetime.utcnow()
+            'created_date': datetime.utcnow(),
+            'user_id': current_user_id  # Asociar categoría al usuario
         }
         
         # Insertar en MongoDB
@@ -809,14 +1031,17 @@ def create_category():
         return jsonify({'error': f'Error al crear categoría: {str(e)}'}), 500
 
 @app.route('/api/categories/<category_id>', methods=['GET'])
-def get_category(category_id):
+@token_required
+def get_category(current_user_id, category_id):
     """Obtener una categoría por ID"""
     try:
         db = get_db()
-        category = db.categories.find_one({'_id': ObjectId(category_id)})
+        
+        # Verificar que la categoría pertenece al usuario
+        category = db.categories.find_one({'_id': ObjectId(category_id), 'user_id': current_user_id})
         
         if not category:
-            return jsonify({'error': 'Categoría no encontrada'}), 404
+            return jsonify({'error': 'Categoría no encontrada o no autorizada'}), 403
         
         return jsonify({
             'category': serialize_doc(category)
@@ -826,7 +1051,8 @@ def get_category(category_id):
         return jsonify({'error': f'Error al obtener categoría: {str(e)}'}), 500
 
 @app.route('/api/categories/<category_id>', methods=['PUT'])
-def update_category(category_id):
+@token_required
+def update_category(current_user_id, category_id):
     """Actualizar una categoría existente"""
     try:
         data = request.get_json()
@@ -835,6 +1061,11 @@ def update_category(category_id):
             return jsonify({'error': 'Datos requeridos'}), 400
         
         db = get_db()
+        
+        # Verificar que la categoría pertenece al usuario
+        existing_category = db.categories.find_one({'_id': ObjectId(category_id), 'user_id': current_user_id})
+        if not existing_category:
+            return jsonify({'error': 'Categoría no encontrada o no autorizada'}), 403
         
         # Preparar campos actualizables
         update_fields = {}
@@ -850,15 +1081,15 @@ def update_category(category_id):
         
         # Actualizar en MongoDB
         result = db.categories.update_one(
-            {'_id': ObjectId(category_id)},
+            {'_id': ObjectId(category_id), 'user_id': current_user_id},
             {'$set': update_fields}
         )
         
         if result.matched_count == 0:
-            return jsonify({'error': 'Categoría no encontrada'}), 404
+            return jsonify({'error': 'Error al actualizar categoría'}), 500
         
         # Obtener categoría actualizada
-        updated_category = db.categories.find_one({'_id': ObjectId(category_id)})
+        updated_category = db.categories.find_one({'_id': ObjectId(category_id), 'user_id': current_user_id})
         
         return jsonify({
             'message': 'Categoría actualizada correctamente',
@@ -869,10 +1100,17 @@ def update_category(category_id):
         return jsonify({'error': f'Error al actualizar categoría: {str(e)}'}), 500
 
 @app.route('/api/categories/<category_id>', methods=['DELETE'])
-def delete_category(category_id):
+@token_required
+def delete_category(current_user_id, category_id):
     """Eliminar una categoría y opcionalmente sus anotaciones asociadas"""
     try:
         db = get_db()
+        
+        # Verificar que la categoría pertenece al usuario
+        category = db.categories.find_one({'_id': ObjectId(category_id), 'user_id': current_user_id})
+        if not category:
+            return jsonify({'error': 'Categoría no encontrada o no autorizada'}), 403
+        
         dataset_id = request.args.get('dataset_id')  # Parámetro opcional para contexto de dataset
         force = request.args.get('force', 'false').lower() == 'true'  # Forzar eliminación
         
@@ -922,11 +1160,15 @@ def delete_category(category_id):
             delete_result = db.annotations.delete_many(annotations_query)
             print(f"Eliminadas {delete_result.deleted_count} anotaciones de la categoría {category_id}")
         
+        # Eliminar registros de visibilidad asociados a esta categoría
+        visibility_result = db.category_visibility.delete_many({'category_id': category_id})
+        print(f"Eliminados {visibility_result.deleted_count} registros de visibilidad de la categoría {category_id}")
+        
         # Eliminar categoría
-        result = db.categories.delete_one({'_id': ObjectId(category_id)})
+        result = db.categories.delete_one({'_id': ObjectId(category_id), 'user_id': current_user_id})
         
         if result.deleted_count == 0:
-            return jsonify({'error': 'Categoría no encontrada'}), 404
+            return jsonify({'error': 'Error al eliminar categoría'}), 500
         
         return jsonify({
             'message': 'Categoría eliminada correctamente',
@@ -937,7 +1179,8 @@ def delete_category(category_id):
         return jsonify({'error': f'Error al eliminar categoría: {str(e)}'}), 500
 
 @app.route('/api/categories/<category_id>/toggle-visibility', methods=['PATCH'])
-def toggle_category_visibility(category_id):
+@token_required
+def toggle_category_visibility(current_user_id, category_id):
     """Toggle visibilidad de una categoría para un dataset específico"""
     try:
         db = get_db()
@@ -945,6 +1188,16 @@ def toggle_category_visibility(category_id):
         
         if not dataset_id:
             return jsonify({'error': 'dataset_id es requerido'}), 400
+        
+        # Verificar que la categoría pertenece al usuario
+        category = db.categories.find_one({'_id': ObjectId(category_id), 'user_id': current_user_id})
+        if not category:
+            return jsonify({'error': 'Categoría no encontrada o no autorizada'}), 403
+        
+        # Verificar que el dataset pertenece al usuario
+        dataset = db.datasets.find_one({'_id': ObjectId(dataset_id), 'user_id': current_user_id})
+        if not dataset:
+            return jsonify({'error': 'Dataset no encontrado o no autorizado'}), 403
         
         # Buscar o crear registro de visibilidad
         visibility_doc = db.category_visibility.find_one({
@@ -977,10 +1230,16 @@ def toggle_category_visibility(category_id):
         return jsonify({'error': f'Error al toggle visibilidad: {str(e)}'}), 500
 
 @app.route('/api/categories/visibility/<dataset_id>', methods=['GET'])
-def get_categories_visibility(dataset_id):
+@token_required
+def get_categories_visibility(current_user_id, dataset_id):
     """Obtener visibilidad de categorías para un dataset"""
     try:
         db = get_db()
+        
+        # Verificar que el dataset pertenece al usuario
+        dataset = db.datasets.find_one({'_id': ObjectId(dataset_id), 'user_id': current_user_id})
+        if not dataset:
+            return jsonify({'error': 'Dataset no encontrado o no autorizado'}), 403
         
         visibility_records = list(db.category_visibility.find({'dataset_id': dataset_id}))
         
@@ -997,7 +1256,8 @@ def get_categories_visibility(dataset_id):
         return jsonify({'error': f'Error al obtener visibilidad: {str(e)}'}), 500
 
 @app.route('/api/categories/data', methods=['GET'])
-def get_categories_data():
+@token_required
+def get_categories_data(current_user_id):
     """Obtener estadísticas de categorías con conteo de anotaciones"""
     try:
         db = get_db()
@@ -1007,8 +1267,13 @@ def get_categories_data():
         if not dataset_id:
             return jsonify({'error': 'dataset_id es requerido'}), 400
         
-        # Obtener todas las categorías del dataset
-        categories = list(db.categories.find({'dataset_id': dataset_id}))
+        # Verificar que el dataset pertenece al usuario
+        dataset = db.datasets.find_one({'_id': ObjectId(dataset_id), 'user_id': current_user_id})
+        if not dataset:
+            return jsonify({'error': 'Dataset no encontrado o no autorizado'}), 403
+        
+        # Obtener todas las categorías del dataset del usuario
+        categories = list(db.categories.find({'dataset_id': dataset_id, 'user_id': current_user_id}))
         
         # Contar anotaciones por categoría y estandarizar formato
         for category in categories:
@@ -1033,18 +1298,24 @@ def get_categories_data():
         return jsonify({'error': f'Error al obtener datos de categorías: {str(e)}'}), 500
 
 @app.route('/api/categories/check/<dataset_id>', methods=['GET'])
-def check_categories_availability(dataset_id):
+@token_required
+def check_categories_availability(current_user_id, dataset_id):
     """Verificar si un dataset tiene categorías disponibles"""
     try:
         db = get_db()
         
-        # Contar categorías en el dataset
-        categories_count = db.categories.count_documents({'dataset_id': dataset_id})
+        # Verificar que el dataset pertenece al usuario
+        dataset = db.datasets.find_one({'_id': ObjectId(dataset_id), 'user_id': current_user_id})
+        if not dataset:
+            return jsonify({'error': 'Dataset no encontrado o no autorizado'}), 403
+        
+        # Contar categorías en el dataset del usuario
+        categories_count = db.categories.count_documents({'dataset_id': dataset_id, 'user_id': current_user_id})
         
         # Obtener lista de categorías si existen
         categories = []
         if categories_count > 0:
-            categories_list = list(db.categories.find({'dataset_id': dataset_id}))
+            categories_list = list(db.categories.find({'dataset_id': dataset_id, 'user_id': current_user_id}))
             categories = [serialize_doc(cat) for cat in categories_list]
         
         return jsonify({
@@ -1060,16 +1331,18 @@ def check_categories_availability(dataset_id):
 # ==================== ENDPOINTS PARA DATASETS ====================
 
 @app.route('/api/datasets', methods=['GET'])
-def get_datasets():
-    """Obtener lista de todos los datasets"""
+@token_required
+def get_datasets(current_user_id):
+    """Obtener lista de todos los datasets del usuario"""
     try:
         db = get_db()
-        datasets = list(db.datasets.find({}, {'images': 0}))  # Excluir lista de imágenes para listar
+        # Filtrar solo datasets del usuario actual
+        datasets = list(db.datasets.find({'user_id': current_user_id}, {'images': 0}))  # Excluir lista de imágenes para listar
         
         # Contar imágenes para cada dataset
         for dataset in datasets:
             dataset_id = str(dataset['_id'])
-            image_count = db.images.count_documents({'dataset_id': dataset_id})
+            image_count = db.images.count_documents({'dataset_id': dataset_id, 'user_id': current_user_id})
             dataset['image_count'] = image_count
         
         return jsonify({
@@ -1080,7 +1353,8 @@ def get_datasets():
         return jsonify({'error': f'Error al obtener datasets: {str(e)}'}), 500
 
 @app.route('/api/datasets', methods=['POST'])
-def create_dataset():
+@token_required
+def create_dataset(current_user_id):
     """Crear un nuevo dataset"""
     try:
         data = request.get_json()
@@ -1090,8 +1364,8 @@ def create_dataset():
         
         db = get_db()
         
-        # Verificar que no existe un dataset con el mismo nombre
-        existing = db.datasets.find_one({'name': data['name']})
+        # Verificar que no existe un dataset con el mismo nombre para este usuario
+        existing = db.datasets.find_one({'name': data['name'], 'user_id': current_user_id})
         if existing:
             return jsonify({'error': 'Ya existe un dataset con ese nombre'}), 400
         
@@ -1103,7 +1377,8 @@ def create_dataset():
             'categories': data.get('categories', []),
             'created_date': datetime.utcnow(),
             'created_by': data.get('created_by', 'usuario'),
-            'image_count': 0
+            'image_count': 0,
+            'user_id': current_user_id  # Asociar dataset al usuario
         }
         
         # Insertar en MongoDB
@@ -1123,7 +1398,8 @@ def create_dataset():
         return jsonify({'error': f'Error al crear dataset: {str(e)}'}), 500
 
 @app.route('/api/datasets/<dataset_id>', methods=['GET'])
-def get_dataset(dataset_id):
+@token_required
+def get_dataset(current_user_id, dataset_id):
     """Obtener un dataset específico con sus imágenes"""
     try:
         db = get_db()
@@ -1131,14 +1407,14 @@ def get_dataset(dataset_id):
         if not ObjectId.is_valid(dataset_id):
             return jsonify({'error': 'ID de dataset inválido'}), 400
             
-        dataset = db.datasets.find_one({'_id': ObjectId(dataset_id)})
+        dataset = db.datasets.find_one({'_id': ObjectId(dataset_id), 'user_id': current_user_id})
         
         if not dataset:
             return jsonify({'error': 'Dataset no encontrado'}), 404
         
-        # Obtener imágenes del dataset
+        # Obtener imágenes del dataset del usuario
         images = list(db.images.find(
-            {'dataset_id': dataset_id},
+            {'dataset_id': dataset_id, 'user_id': current_user_id},
             {'data': 0}  # Excluir datos binarios para listar
         ))
         
@@ -1153,7 +1429,8 @@ def get_dataset(dataset_id):
         return jsonify({'error': f'Error al obtener dataset: {str(e)}'}), 500
 
 @app.route('/api/datasets/<dataset_id>', methods=['DELETE'])
-def delete_dataset(dataset_id):
+@token_required
+def delete_dataset(current_user_id, dataset_id):
     """Eliminar un dataset y todas sus imágenes/anotaciones"""
     try:
         db = get_db()
@@ -1161,8 +1438,8 @@ def delete_dataset(dataset_id):
         if not ObjectId.is_valid(dataset_id):
             return jsonify({'error': 'ID de dataset inválido'}), 400
         
-        # Verificar que existe
-        dataset = db.datasets.find_one({'_id': ObjectId(dataset_id)})
+        # Verificar que existe y pertenece al usuario
+        dataset = db.datasets.find_one({'_id': ObjectId(dataset_id), 'user_id': current_user_id})
         if not dataset:
             return jsonify({'error': 'Dataset no encontrado'}), 404
         
@@ -1176,6 +1453,10 @@ def delete_dataset(dataset_id):
         # Eliminar anotaciones de todas las imágenes
         for img in images:
             db.annotations.delete_many({'image_id': str(img['_id'])})
+        
+        # Eliminar registros de visibilidad del dataset antes de eliminar las categorías
+        visibility_result = db.category_visibility.delete_many({'dataset_id': dataset_id})
+        print(f"Eliminados {visibility_result.deleted_count} registros de visibilidad del dataset {dataset_id}")
         
         # Eliminar todas las categorías asociadas al dataset
         categories_result = db.categories.delete_many({'dataset_id': dataset_id})
@@ -1213,7 +1494,8 @@ def delete_dataset(dataset_id):
         return jsonify({'error': f'Error al eliminar dataset: {str(e)}'}), 500
 
 @app.route('/api/datasets/import', methods=['POST'])
-def import_dataset_zip():
+@token_required
+def import_dataset_zip(current_user_id):
     """Importar un dataset desde un archivo ZIP"""
     try:
         if 'file' not in request.files:
@@ -1230,8 +1512,8 @@ def import_dataset_zip():
         
         db = get_db()
         
-        # Verificar que no existe un dataset con el mismo nombre
-        existing = db.datasets.find_one({'name': dataset_name})
+        # Verificar que no existe un dataset con el mismo nombre para este usuario
+        existing = db.datasets.find_one({'name': dataset_name, 'user_id': current_user_id})
         if existing:
             return jsonify({'error': 'Ya existe un dataset con ese nombre'}), 400
         
@@ -1243,7 +1525,8 @@ def import_dataset_zip():
             'categories': [],
             'created_date': datetime.utcnow(),
             'created_by': 'usuario',
-            'image_count': 0
+            'image_count': 0,
+            'user_id': current_user_id  # Asociar dataset al usuario
         }
         
         result = db.datasets.insert_one(dataset_doc)
@@ -1321,7 +1604,8 @@ def import_dataset_zip():
                         'width': width,
                         'height': height,
                         'upload_date': datetime.utcnow(),
-                        'dataset_id': dataset_id
+                        'dataset_id': dataset_id,
+                        'user_id': current_user_id  # Asociar imagen al usuario
                     }
                     
                     batch_docs.append(image_doc)
@@ -1383,7 +1667,8 @@ def import_dataset_zip():
         return jsonify({'error': f'Error al importar dataset: {str(e)}'}), 500
 
 @app.route('/api/datasets/import-images', methods=['POST'])
-def import_images_to_dataset():
+@token_required
+def import_images_to_dataset(current_user_id):
     """Importar imágenes desde un archivo ZIP a un dataset existente"""
     try:
         if 'file' not in request.files:
@@ -1403,8 +1688,8 @@ def import_images_to_dataset():
 
         db = get_db()
         
-        # Verificar que el dataset existe
-        dataset = db.datasets.find_one({'_id': ObjectId(dataset_id)})
+        # Verificar que el dataset existe y pertenece al usuario
+        dataset = db.datasets.find_one({'_id': ObjectId(dataset_id), 'user_id': current_user_id})
         if not dataset:
             return jsonify({'error': 'Dataset no encontrado'}), 404
         
@@ -1479,7 +1764,8 @@ def import_images_to_dataset():
                         'width': width,
                         'height': height,
                         'upload_date': datetime.utcnow(),
-                        'dataset_id': dataset_id
+                        'dataset_id': dataset_id,
+                        'user_id': current_user_id  # Asociar imagen al usuario
                     }
                     
                     batch_docs.append(image_doc)
@@ -1553,15 +1839,19 @@ def import_images_to_dataset():
         return jsonify({'error': f'Error al importar imágenes: {str(e)}'}), 500
 
 @app.route('/api/datasets/<dataset_id>/reprocess-images', methods=['POST'])
-def reprocess_images_from_folder(dataset_id):
+@token_required
+def reprocess_images_from_folder(current_user_id, dataset_id):
     """Reprocesar imágenes que están en carpeta pero no en base de datos"""
     try:
         db = get_db()
         
-        # Verificar que el dataset existe
-        dataset = db.datasets.find_one({'_id': ObjectId(dataset_id)})
+        # Verificar que el dataset existe y pertenece al usuario
+        dataset = db.datasets.find_one({
+            '_id': ObjectId(dataset_id),
+            'user_id': ObjectId(current_user_id)
+        })
         if not dataset:
-            return jsonify({'error': 'Dataset no encontrado'}), 404
+            return jsonify({'error': 'Dataset no encontrado o no autorizado'}), 403
         
         dataset_name = dataset['name']
         dataset_folder = os.path.join(IMAGE_FOLDER, dataset_name)
@@ -1644,7 +1934,8 @@ def reprocess_images_from_folder(dataset_id):
                         'width': width,
                         'height': height,
                         'upload_date': datetime.utcnow(),
-                        'dataset_id': dataset_id
+                        'dataset_id': dataset_id,
+                        'user_id': ObjectId(current_user_id)
                     }
                     
                     batch_docs.append(image_doc)
@@ -1696,7 +1987,8 @@ def reprocess_images_from_folder(dataset_id):
 # ==================== IMPORTAR ANOTACIONES ====================
 
 @app.route('/api/annotations/import', methods=['POST'])
-def import_annotations():
+@token_required
+def import_annotations(current_user_id):
     """Importar anotaciones desde diferentes formatos: COCO, YOLO, PascalVOC"""
     try:
         db = get_db()
@@ -1704,6 +1996,12 @@ def import_annotations():
         # Obtener el formato de las anotaciones
         annotation_format = request.form.get('format', 'coco')
         dataset_id = request.form.get('dataset_id')
+        
+        # Verificar que el dataset pertenece al usuario
+        if dataset_id:
+            dataset = db.datasets.find_one({'_id': ObjectId(dataset_id), 'user_id': current_user_id})
+            if not dataset:
+                return jsonify({'error': 'Dataset no encontrado o no autorizado'}), 403
         
         if 'annotations' not in request.files:
             return jsonify({'error': 'No se encontró archivo de anotaciones'}), 400
@@ -1721,13 +2019,13 @@ def import_annotations():
         
         if annotation_format == 'coco':
             # Procesar formato COCO (JSON)
-            stats = process_coco_format(db, annotations_file, images_file, dataset_id)
+            stats = process_coco_format(db, annotations_file, images_file, dataset_id, current_user_id)
         elif annotation_format == 'yolo':
             # Procesar formato YOLO (ZIP con .txt)
-            stats = process_yolo_format(db, annotations_file, images_file, dataset_id)
+            stats = process_yolo_format(db, annotations_file, images_file, dataset_id, current_user_id)
         elif annotation_format == 'pascal':
             # Procesar formato PascalVOC (ZIP con .xml)
-            stats = process_pascal_format(db, annotations_file, images_file, dataset_id)
+            stats = process_pascal_format(db, annotations_file, images_file, dataset_id, current_user_id)
         else:
             return jsonify({'error': f'Formato no soportado: {annotation_format}'}), 400
         
@@ -1812,7 +2110,7 @@ def merge_coco_json_files(json_files_data):
     return merged
 
 
-def process_coco_format(db, annotations_file, images_file, dataset_id):
+def process_coco_format(db, annotations_file, images_file, dataset_id, user_id):
     """Procesar archivo COCO JSON o ZIP con múltiples JSONs, con búsqueda por nombre de imagen dentro del dataset"""
     import json
     import zipfile
@@ -1884,7 +2182,8 @@ def process_coco_format(db, annotations_file, images_file, dataset_id):
                     'color': color,
                     'dataset_id': dataset_id,
                     'created_date': datetime.utcnow(),
-                    'annotation_count': 0
+                    'annotation_count': 0,
+                    'user_id': user_id  # Asociar categoría al usuario
                 }
                 result = db.categories.insert_one(new_cat)
                 category_map[cat['id']] = str(result.inserted_id)
@@ -1945,7 +2244,8 @@ def process_coco_format(db, annotations_file, images_file, dataset_id):
             'fill': 'rgba(0,255,0,0.2)',
             'closed': False,
             'created_date': datetime.utcnow(),
-            'modified_date': datetime.utcnow()
+            'modified_date': datetime.utcnow(),
+            'user_id': user_id  # Asociar anotación al usuario
         }
 
         # Polígonos (segmentación)
@@ -1988,7 +2288,7 @@ def process_coco_format(db, annotations_file, images_file, dataset_id):
 
     return stats
 
-def process_yolo_format(db, annotations_file, images_file, dataset_id):
+def process_yolo_format(db, annotations_file, images_file, dataset_id, user_id):
     """Procesar formato YOLO (ZIP con archivos .txt)"""
     import zipfile
     import tempfile
@@ -2023,7 +2323,8 @@ def process_yolo_format(db, annotations_file, images_file, dataset_id):
                         'name': class_name,
                         'color': f"#{hash(class_name) & 0xFFFFFF:06x}",
                         'dataset_id': dataset_id,
-                        'created_date': datetime.utcnow()
+                        'created_date': datetime.utcnow(),
+                        'user_id': user_id  # Asociar categoría al usuario
                     }
                     result = db.categories.insert_one(new_cat)
                     category_map[idx] = str(result.inserted_id)
@@ -2100,7 +2401,8 @@ def process_yolo_format(db, annotations_file, images_file, dataset_id):
                         'type': 'bbox',
                         'area': abs_width * abs_height,
                         'created_date': datetime.utcnow(),
-                        'dataset_id': dataset_id
+                        'dataset_id': dataset_id,
+                        'user_id': user_id  # Asociar anotación al usuario
                     }
                     
                     # Verificar duplicados antes de crear la anotación
@@ -2127,7 +2429,7 @@ def process_yolo_format(db, annotations_file, images_file, dataset_id):
     
     return stats
 
-def process_pascal_format(db, annotations_file, images_file, dataset_id):
+def process_pascal_format(db, annotations_file, images_file, dataset_id, user_id):
     """Procesar formato PascalVOC (ZIP con archivos .xml)"""
     import zipfile
     import tempfile
@@ -2195,7 +2497,8 @@ def process_pascal_format(db, annotations_file, images_file, dataset_id):
                                 'name': name,
                                 'color': f"#{hash(name) & 0xFFFFFF:06x}",
                                 'dataset_id': dataset_id,
-                                'created_date': datetime.utcnow()
+                                'created_date': datetime.utcnow(),
+                                'user_id': user_id  # Asociar categoría al usuario
                             }
                             result = db.categories.insert_one(new_cat)
                             category_map[name] = str(result.inserted_id)
@@ -2219,7 +2522,8 @@ def process_pascal_format(db, annotations_file, images_file, dataset_id):
                         'type': 'bbox',
                         'area': (xmax - xmin) * (ymax - ymin),
                         'created_date': datetime.utcnow(),
-                        'dataset_id': dataset_id
+                        'dataset_id': dataset_id,
+                        'user_id': user_id  # Asociar anotación al usuario
                     }
                     
                     # Verificar duplicados antes de crear la anotación
@@ -2270,10 +2574,19 @@ def health_check():
 # ==================== ENDPOINTS PARA EXPORTAR ANOTACIONES ====================
 
 @app.route('/api/annotations/export/<dataset_id>', methods=['GET'])
-def export_annotations(dataset_id):
+@token_required
+def export_annotations(current_user_id, dataset_id):
     """Exportar anotaciones en diferentes formatos (COCO, YOLO, PascalVOC)"""
     try:
         db = get_db()
+        
+        # Verificar que el dataset pertenece al usuario
+        dataset = db.datasets.find_one({
+            '_id': ObjectId(dataset_id),
+            'user_id': ObjectId(current_user_id)
+        })
+        if not dataset:
+            return jsonify({'error': 'Dataset no encontrado o no autorizado'}), 403
         
         # Obtener parámetros
         export_format = request.args.get('format', 'coco')  # coco, yolo, pascal
@@ -2322,10 +2635,19 @@ def export_annotations(dataset_id):
         return jsonify({'error': str(e)}), 500
 
 @app.route('/api/annotations/export-stats/<dataset_id>', methods=['GET'])
-def get_export_statistics(dataset_id):
+@token_required
+def get_export_statistics(current_user_id, dataset_id):
     """Obtener estadísticas de exportación sin realizar la exportación"""
     try:
         db = get_db()
+        
+        # Verificar que el dataset pertenece al usuario
+        dataset = db.datasets.find_one({
+            '_id': ObjectId(dataset_id),
+            'user_id': ObjectId(current_user_id)
+        })
+        if not dataset:
+            return jsonify({'error': 'Dataset no encontrado o no autorizado'}), 403
         
         # Obtener parámetros (los mismos que el endpoint de exportación)
         only_annotated = request.args.get('only_annotated', 'true').lower() == 'true'
@@ -2854,7 +3176,7 @@ def _generate_color_not_in_set(used_colors_set):
         
     return fallback_color
 
-def ensure_model_categories_exist(dataset_id, model_categories):
+def ensure_model_categories_exist(dataset_id, model_categories, user_id=None):
     """
     Asegurar que las categorías del modelo existan en la base de datos.
     Si no existen, las crea automáticamente con colores únicos.
@@ -2872,6 +3194,13 @@ def ensure_model_categories_exist(dataset_id, model_categories):
     
     # 1. Obtener TODAS las categorías existentes y sus colores de UNA SOLA VEZ
     existing_categories_list = list(db.categories.find({'dataset_id': dataset_id}))
+
+    # Si recibimos categorías sin user_id (legacy) y conocemos el usuario, actualizarlas
+    if user_id:
+        for cat in existing_categories_list:
+            if not cat.get('user_id'):
+                db.categories.update_one({'_id': cat['_id']}, {'$set': {'user_id': user_id}})
+                cat['user_id'] = user_id
     
     # 2. Crear un mapa de nombres para búsquedas rápidas en memoria
     existing_names_map = {cat['name']: cat for cat in existing_categories_list}
@@ -2908,12 +3237,16 @@ def ensure_model_categories_exist(dataset_id, model_categories):
                 'created_date': datetime.utcnow(),
                 'creator': 'ai_model' # Marcar que fue creada por un modelo de IA
             }
+
+            if user_id:
+                category_doc['user_id'] = user_id
             
             result = db.categories.insert_one(category_doc)
             category_doc['_id'] = str(result.inserted_id)
+            category_doc['id'] = category_doc['_id']
             created_categories.append(category_doc)
             
-            # 8. (Opcional pero recomendado) Añadir la categoría recién creada al mapa
+            # 8. Añadir la categoría recién creada al mapa
             # para evitar que se cree de nuevo si el nombre está duplicado
             # en la lista `model_categories`
             existing_names_map[category_name] = category_doc
@@ -2946,11 +3279,18 @@ def get_category_mapping(dataset_id, model_categories):
     return mapping
 
 @app.route('/api/ai/saved-models', methods=['GET'])
-def get_saved_models():
+@token_required
+def get_saved_models(current_user_id):
     """Obtener lista de modelos guardados, separados por tipo"""
     try:
         db = get_db()
-        models = list(db.ai_models.find())
+        # Obtener modelos del usuario actual o modelos precargados (compartidos)
+        models = list(db.ai_models.find({
+            '$or': [
+                {'user_id': current_user_id},
+                {'is_preloaded': True}
+            ]
+        }))
         
         preloaded_models = []
         custom_models = []
@@ -2976,7 +3316,8 @@ def get_saved_models():
         return jsonify({'error': f'Error al obtener modelos: {str(e)}'}), 500
 
 @app.route('/api/ai/load-saved-model', methods=['POST'])
-def load_saved_model():
+@token_required
+def load_saved_model(current_user_id):
     """Cargar un modelo previamente guardado y crear sus categorías en el dataset"""
     global loaded_model, loaded_model_id, model_name, model_categories
     
@@ -2992,10 +3333,18 @@ def load_saved_model():
         from ultralytics import YOLO
         
         db = get_db()
-        model_doc = db.ai_models.find_one({'_id': ObjectId(model_id)})
+        
+        # Verificar que el modelo pertenece al usuario o es precargado
+        model_doc = db.ai_models.find_one({
+            '_id': ObjectId(model_id),
+            '$or': [
+                {'user_id': current_user_id},
+                {'is_preloaded': True}
+            ]
+        })
         
         if not model_doc:
-            return jsonify({'error': 'Modelo no encontrado'}), 404
+            return jsonify({'error': 'Modelo no encontrado o no autorizado'}), 403
         
         # Cargar el modelo desde el archivo guardado
         model_path = model_doc['file_path']
@@ -3010,7 +3359,7 @@ def load_saved_model():
         # Crear categorías del modelo en el dataset si se proporciona dataset_id
         created_categories = []
         if dataset_id:
-            created_categories = ensure_model_categories_exist(dataset_id, model_categories)
+            created_categories = ensure_model_categories_exist(dataset_id, model_categories, current_user_id)
         
         return jsonify({
             'success': True,
@@ -3031,7 +3380,8 @@ def load_saved_model():
         return jsonify({'error': f'Error al cargar modelo: {str(e)}'}), 500
 
 @app.route('/api/ai/load-model', methods=['POST'])
-def load_ai_model():
+@token_required
+def load_ai_model(current_user_id):
     """Cargar un modelo YOLO para inferencia y guardarlo en la base de datos"""
     global loaded_model, loaded_model_id, model_name, model_categories
     
@@ -3118,7 +3468,8 @@ def load_ai_model():
             'created_at': datetime.now().isoformat(),
             'file_size': os.path.getsize(permanent_model_path),
             'original_filename': model_file.filename,
-            'is_preloaded': False
+            'is_preloaded': False,
+            'user_id': current_user_id  # Asociar modelo al usuario
         }
         
         result = db.ai_models.insert_one(model_doc)
@@ -3128,7 +3479,7 @@ def load_ai_model():
         # Crear categorías del modelo en el dataset si se proporciona dataset_id
         created_categories = []
         if dataset_id:
-            created_categories = ensure_model_categories_exist(dataset_id, model_categories)
+            created_categories = ensure_model_categories_exist(dataset_id, model_categories, current_user_id)
         
         return jsonify({
             'success': True,
@@ -3158,7 +3509,8 @@ def load_ai_model():
         return jsonify({'error': f'Error al cargar el modelo: {str(e)}'}), 500
 
 @app.route('/api/ai/unload-model', methods=['POST'])
-def unload_ai_model():
+@token_required
+def unload_ai_model(current_user_id):
     """Descargar el modelo actual"""
     global loaded_model, loaded_model_id, model_name, model_categories
     
@@ -3180,7 +3532,8 @@ def unload_ai_model():
         return jsonify({'error': f'Error al descargar modelo: {str(e)}'}), 500
 
 @app.route('/api/ai/models/<model_id>', methods=['DELETE'])
-def delete_ai_model(model_id):
+@token_required
+def delete_ai_model(current_user_id, model_id):
     """Eliminar un modelo personalizado (no precargado)"""
     global loaded_model, loaded_model_id, model_name, model_categories
     
@@ -3189,17 +3542,22 @@ def delete_ai_model(model_id):
             return jsonify({'error': 'ID de modelo inválido'}), 400
         
         db = get_db()
-        model_doc = db.ai_models.find_one({'_id': ObjectId(model_id)})
+        
+        # Verificar que el modelo pertenece al usuario y no es precargado
+        model_doc = db.ai_models.find_one({
+            '_id': ObjectId(model_id),
+            'user_id': current_user_id
+        })
         
         if not model_doc:
-            return jsonify({'error': 'Modelo no encontrado'}), 404
+            return jsonify({'error': 'Modelo no encontrado o no autorizado'}), 403
         
         # No permitir eliminar modelos precargados
         if model_doc.get('is_preloaded', False):
             return jsonify({'error': 'No se pueden eliminar modelos precargados'}), 403
         
         # Eliminar modelo de la base de datos
-        result = db.ai_models.delete_one({'_id': ObjectId(model_id)})
+        result = db.ai_models.delete_one({'_id': ObjectId(model_id), 'user_id': current_user_id})
         
         if result.deleted_count == 0:
             return jsonify({'error': 'No se pudo eliminar el modelo'}), 500
@@ -3239,7 +3597,8 @@ def delete_ai_model(model_id):
         return jsonify({'error': f'Error al eliminar modelo: {str(e)}'}), 500
 
 @app.route('/api/ai/predict', methods=['POST'])
-def predict_image():
+@token_required
+def predict_image(current_user_id):
     """Realizar predicción en una imagen usando el modelo cargado"""
     global loaded_model, model_categories
     
@@ -3254,12 +3613,12 @@ def predict_image():
         if not image_id:
             return jsonify({'error': 'ID de imagen requerido'}), 400
         
-        # Obtener imagen de la base de datos
+        # Obtener imagen de la base de datos y verificar propiedad
         db = get_db()
-        image_doc = db.images.find_one({'_id': ObjectId(image_id)})
+        image_doc = db.images.find_one({'_id': ObjectId(image_id), 'user_id': current_user_id})
         
         if not image_doc:
-            return jsonify({'error': 'Imagen no encontrada'}), 404
+            return jsonify({'error': 'Imagen no encontrada o no autorizada'}), 403
         
         # Verificar que la imagen tenga dataset_id
         dataset_id = image_doc.get('dataset_id')
@@ -3267,7 +3626,7 @@ def predict_image():
             return jsonify({'error': 'La imagen debe pertenecer a un dataset para realizar predicciones'}), 400
         
         # Crear automáticamente las categorías del modelo si no existen
-        created_categories = ensure_model_categories_exist(dataset_id, model_categories)
+        created_categories = ensure_model_categories_exist(dataset_id, model_categories, current_user_id)
         
         # Obtener el mapeo de categorías del modelo a IDs de base de datos
         category_mapping = get_category_mapping(dataset_id, model_categories)
@@ -3370,7 +3729,8 @@ def predict_image():
                             'source': 'ai_prediction',  # Marcar como predicción de IA
                             'model_name': model_name,
                             'created_date': datetime.utcnow(),
-                            'modified_date': datetime.utcnow()
+                            'modified_date': datetime.utcnow(),
+                            'user_id': current_user_id  # Asociar anotación al usuario
                         }
                         
                         # Verificar duplicados antes de crear la anotación
@@ -3429,7 +3789,8 @@ def predict_image():
         return jsonify({'error': f'Error en la predicción: {str(e)}'}), 500
 
 @app.route('/api/ai/model-status', methods=['GET'])
-def get_model_status():
+@token_required
+def get_model_status(current_user_id):
     """Obtener estado actual del modelo"""
     global loaded_model, model_name, model_categories
     
@@ -3440,7 +3801,8 @@ def get_model_status():
     })
 
 @app.route('/api/ai/test-image', methods=['POST'])
-def test_image_processing():
+@token_required
+def test_image_processing(current_user_id):
     """Endpoint para probar el procesamiento de imágenes sin predicción"""
     try:
         data = request.get_json()
@@ -3449,12 +3811,12 @@ def test_image_processing():
         if not image_id:
             return jsonify({'error': 'ID de imagen requerido'}), 400
         
-        # Obtener imagen de la base de datos
+        # Obtener imagen de la base de datos y verificar propiedad
         db = get_db()
-        image_doc = db.images.find_one({'_id': ObjectId(image_id)})
+        image_doc = db.images.find_one({'_id': ObjectId(image_id), 'user_id': current_user_id})
         
         if not image_doc:
-            return jsonify({'error': 'Imagen no encontrada'}), 404
+            return jsonify({'error': 'Imagen no encontrada o no autorizada'}), 403
         
         # Información de debug sobre la imagen
         info = {

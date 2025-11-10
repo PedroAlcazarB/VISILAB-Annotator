@@ -146,6 +146,8 @@
 </template>
 
 <script>
+import { useAuthStore } from '../stores/authStore'
+
 export default {
   name: 'ExportAnnotations',
   props: {
@@ -202,11 +204,16 @@ export default {
         this.progressMessage = 'Generando archivo de exportación...'
         this.progress = 30
 
-        // Realizar la petición al backend
+        // Obtener el store de autenticación
+        const authStore = useAuthStore()
+        
         const response = await fetch(
           `http://localhost:5000/api/annotations/export/${this.datasetId}?${params}`,
           {
-            method: 'GET'
+            method: 'GET',
+            headers: {
+              'Authorization': `Bearer ${authStore.token}`
+            }
           }
         )
 

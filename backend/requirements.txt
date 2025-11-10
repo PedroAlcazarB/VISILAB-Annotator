@@ -1,7 +1,10 @@
-flask
-flask-cors
-watchdog
-flask-socketio
-Pillow
-pymongo
-ultralytics
+flask==3.1.2
+werkzeug==3.1.3
+flask-cors==4.0.0
+flask-bcrypt==1.0.1
+PyJWT==2.8.0
+watchdog==6.0.0
+flask-socketio==5.3.4
+Pillow==12.0.0
+pymongo==4.15.3
+ultralytics==8.3.227

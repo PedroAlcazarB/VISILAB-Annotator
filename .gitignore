@@ -15,6 +15,13 @@ __pycache__/
 *.pyc
 *.pyo
 
+# Environment variables (CRÍTICO - No subir claves reales)
+.env
+*.env
+!.env.example
+!.env.sample
+!.env.template
+
 # IDE
 .vscode/
 .idea/

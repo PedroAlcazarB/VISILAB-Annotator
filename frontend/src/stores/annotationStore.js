@@ -192,12 +192,7 @@ export const useAnnotationStore = defineStore('annotation', {
           for (const annotation of lastEntry.annotations) {
             const annotationId = annotation._id || annotation.id
             if (!annotationId) continue
-            const response = await fetch(`${API_BASE_URL}/annotations/${annotationId}`, {
-              method: 'DELETE'
-            })
-            if (!response.ok) {
-              throw new Error(`Error ${response.status}: ${response.statusText}`)
-            }
+            await window.$apiDelete(`/api/annotations/${annotationId}`)
             this.annotations = this.annotations.filter(ann => (ann._id || ann.id) !== annotationId)
           }
         } else if (lastEntry.type === 'clear') {
@@ -230,16 +225,10 @@ export const useAnnotationStore = defineStore('annotation', {
           formData.append('dataset_id', datasetId || this.currentDataset._id)
         }
         
-        const response = await fetch(`${API_BASE_URL}/images`, {
+        const data = await window.apiFetch('/api/images', {
           method: 'POST',
           body: formData
         })
-        
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}: ${response.statusText}`)
-        }
-        
-        const data = await response.json()
         
         // Añadir imagen al estado local
         this.images.push(data.image)
@@ -260,16 +249,11 @@ export const useAnnotationStore = defineStore('annotation', {
       
       try {
         const targetDatasetId = datasetId || this.currentDataset?._id
-        const url = targetDatasetId ? 
-          `${API_BASE_URL}/images?dataset_id=${targetDatasetId}` : 
-          `${API_BASE_URL}/images`
-        const response = await fetch(url)
+        const endpoint = targetDatasetId ? 
+          `/api/images?dataset_id=${targetDatasetId}` : 
+          `/api/images`
         
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}: ${response.statusText}`)
-        }
-        
-        const data = await response.json()
+        const data = await window.$apiGet(endpoint)
         this.images = data.images
         
         return data.images
@@ -287,13 +271,7 @@ export const useAnnotationStore = defineStore('annotation', {
       this.clearError()
       
       try {
-        const response = await fetch(`${API_BASE_URL}/images/${imageId}`, {
-          method: 'DELETE'
-        })
-        
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}: ${response.statusText}`)
-        }
+        await window.$apiDelete(`/api/images/${imageId}`)
         
         // Remover imagen del estado local
         this.images = this.images.filter(img => img._id !== imageId)
@@ -336,19 +314,7 @@ export const useAnnotationStore = defineStore('annotation', {
           }
         }
         
-        const response = await fetch(`${API_BASE_URL}/annotations`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        })
-        
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}: ${response.statusText}`)
-        }
-        
-        const data = await response.json()
+        const data = await window.$apiPost('/api/annotations', payload)
         
         // Verificar si es un duplicado
         if (data.is_duplicate) {
@@ -387,13 +353,7 @@ export const useAnnotationStore = defineStore('annotation', {
       this.clearError()
       
       try {
-        const response = await fetch(`${API_BASE_URL}/annotations?image_id=${imageId}`)
-        
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}: ${response.statusText}`)
-        }
-        
-        const data = await response.json()
+        const data = await window.$apiGet(`/api/annotations?image_id=${imageId}`)
         
         // Reemplazar anotaciones para esta imagen en el estado local
         this.annotations = this.annotations.filter(ann => ann.image_id !== imageId)
@@ -414,13 +374,7 @@ export const useAnnotationStore = defineStore('annotation', {
       this.clearError()
       
       try {
-        const response = await fetch(`${API_BASE_URL}/annotations`)
-        
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}: ${response.statusText}`)
-        }
-        
-        const data = await response.json()
+        const data = await window.$apiGet('/api/annotations')
         
         // Reemplazar todas las anotaciones en el estado local
         this.annotations = data.annotations
@@ -446,13 +400,7 @@ export const useAnnotationStore = defineStore('annotation', {
           throw new Error('No se proporcionó dataset_id y no hay dataset actual')
         }
         
-        const response = await fetch(`${API_BASE_URL}/annotations?dataset_id=${targetDatasetId}`)
-        
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}: ${response.statusText}`)
-        }
-        
-        const data = await response.json()
+        const data = await window.$apiGet(`/api/annotations?dataset_id=${targetDatasetId}`)
         
         // Reemplazar anotaciones del dataset en el estado local
         this.annotations = data.annotations
@@ -470,13 +418,7 @@ export const useAnnotationStore = defineStore('annotation', {
     // Método para obtener conteo global de anotaciones de una categoría (todos los datasets)
     async getCategoryGlobalAnnotationCount(categoryId) {
       try {
-        const response = await fetch(`${API_BASE_URL}/annotations`)
-        
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}: ${response.statusText}`)
-        }
-        
-        const data = await response.json()
+        const data = await window.$apiGet('/api/annotations')
         
         // Contar anotaciones de esta categoría en todas las anotaciones
         return data.annotations.filter(ann => 
@@ -507,24 +449,12 @@ export const useAnnotationStore = defineStore('annotation', {
       }
     },
     
-    async updateAnnotation(annotationId, updates) {
+    async updateAnnotation(annotationId, updates, options = {}) {
       this.loading = true
       this.clearError()
       
       try {
-        const response = await fetch(`${API_BASE_URL}/annotations/${annotationId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(updates)
-        })
-        
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}: ${response.statusText}`)
-        }
-        
-        const data = await response.json()
+        const data = await window.$apiPut(`/api/annotations/${annotationId}`, updates)
         
         // Actualizar anotación en el estado local
         const index = this.annotations.findIndex(ann => ann._id === annotationId)
@@ -547,13 +477,7 @@ export const useAnnotationStore = defineStore('annotation', {
       this.clearError()
       
       try {
-        const response = await fetch(`${API_BASE_URL}/annotations/${annotationId}`, {
-          method: 'DELETE'
-        })
-        
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}: ${response.statusText}`)
-        }
+        await window.$apiDelete(`/api/annotations/${annotationId}`)
         
         // Remover anotación del estado local
         this.annotations = this.annotations.filter(ann => ann._id !== annotationId)
@@ -575,12 +499,9 @@ export const useAnnotationStore = defineStore('annotation', {
       const existingAnnotations = this.annotations.filter(ann => ann.image_id === imageId)
       
       try {
-        const response = await fetch(`${API_BASE_URL}/annotations/bulk`, {
+        await window.apiFetch(`/api/annotations/bulk`, {
           method: 'DELETE',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({ image_id: imageId })
+          body: { image_id: imageId }
         })
         
         if (!response.ok) {
@@ -618,18 +539,12 @@ export const useAnnotationStore = defineStore('annotation', {
         
         // Si hay dataset_id, filtrar por ese dataset
         // Si no hay, cargar todas las categorías (vista global)
-        let url = `${API_BASE_URL}/categories`
+        let endpoint = `/api/categories`
         if (targetDatasetId) {
-          url += `?dataset_id=${targetDatasetId}`
+          endpoint += `?dataset_id=${targetDatasetId}`
         }
         
-        const response = await fetch(url)
-        
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}: ${response.statusText}`)
-        }
-        
-        const data = await response.json()
+        const data = await window.$apiGet(endpoint)
         this.categories = data.categories || []
         
         // Establecer categoría por defecto si no hay una seleccionada
@@ -664,20 +579,7 @@ export const useAnnotationStore = defineStore('annotation', {
           ...categoryData
         }
         
-        const response = await fetch(`${API_BASE_URL}/categories`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        })
-        
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || 'Error al crear categoría')
-        }
-        
-        const data = await response.json()
+        const data = await window.$apiPost('/api/categories', payload)
         
         // Recargar categorías para mantener consistencia
         await this.loadCategories(targetDatasetId)
@@ -698,24 +600,11 @@ export const useAnnotationStore = defineStore('annotation', {
       
       try {
         const categoryId = categoryData.id || categoryData._id
-        const response = await fetch(`${API_BASE_URL}/categories/${categoryId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            name: categoryData.name,
-            color: categoryData.color,
-            supercategory: categoryData.supercategory
-          })
+        const data = await window.$apiPut(`/api/categories/${categoryId}`, {
+          name: categoryData.name,
+          color: categoryData.color,
+          supercategory: categoryData.supercategory
         })
-        
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || 'Error al actualizar categoría')
-        }
-        
-        const data = await response.json()
         
         // Recargar categorías para mantener consistencia
         await this.loadCategories()
@@ -750,14 +639,7 @@ export const useAnnotationStore = defineStore('annotation', {
           url += `?${params.toString()}`
         }
         
-        const response = await fetch(url, {
-          method: 'DELETE'
-        })
-        
-        if (!response.ok) {
-          const errorData = await response.json()
-          throw new Error(errorData.error || 'Error al eliminar categoría')
-        }
+        await window.$apiDelete(url)
         
         // Si era la categoría seleccionada, cambiar a otra
         if (this.selectedCategory === categoryId) {
@@ -789,13 +671,7 @@ export const useAnnotationStore = defineStore('annotation', {
       
       try {
         const targetDatasetId = datasetId || this.currentDataset._id
-        const response = await fetch(`${API_BASE_URL}/categories/visibility/${targetDatasetId}`)
-        
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}: ${response.statusText}`)
-        }
-        
-        const data = await response.json()
+        const data = await window.$apiGet(`/api/categories/visibility/${targetDatasetId}`)
         this.categoryVisibility = data.visibility || {}
         
       } catch (error) {
@@ -808,20 +684,12 @@ export const useAnnotationStore = defineStore('annotation', {
       if (!this.currentDataset) return
       
       try {
-        const response = await fetch(`${API_BASE_URL}/categories/${categoryId}/toggle-visibility?dataset_id=${this.currentDataset._id}`, {
-          method: 'PATCH'
-        })
-        
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}: ${response.statusText}`)
-        }
-        
-        const data = await response.json()
+        const result = await window.$apiPatch(`/api/categories/${categoryId}/toggle-visibility?dataset_id=${this.currentDataset._id}`, {})
         
         // Actualizar estado local
-        this.categoryVisibility[categoryId] = data.hidden
+        this.categoryVisibility[categoryId] = result.hidden
         
-        return data.hidden
+        return result.hidden
         
       } catch (error) {
         this.setError(`Error al cambiar visibilidad: ${error.message}`)
@@ -881,24 +749,12 @@ export const useAnnotationStore = defineStore('annotation', {
       this.selectedAnnotation = null
     },
     
-    async updateAnnotation(annotationId, updates) {
+    async patchAnnotation(annotationId, updates) {
       this.loading = true
       this.clearError()
       
       try {
-        const response = await fetch(`${API_BASE_URL}/annotations/${annotationId}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(updates)
-        })
-        
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}: ${response.statusText}`)
-        }
-        
-        const data = await response.json()
+        const data = await window.$apiPut(`/api/annotations/${annotationId}`, updates)
         
         // Actualizar en el estado local
         const index = this.annotations.findIndex(ann => ann._id === annotationId)

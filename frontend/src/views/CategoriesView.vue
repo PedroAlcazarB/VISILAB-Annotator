@@ -286,9 +286,7 @@ const editingCategory = ref({
 // Métodos
 async function loadDatasets() {
   try {
-    const response = await fetch('http://localhost:5000/api/datasets')
-    if (!response.ok) throw new Error('Error al cargar datasets')
-    const data = await response.json()
+    const data = await window.$apiGet('/api/datasets')
     datasets.value = data.datasets || []
   } catch (error) {
     console.error('Error al cargar datasets:', error)

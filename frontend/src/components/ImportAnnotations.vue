@@ -218,7 +218,7 @@ async function importAnnotations() {
     uploadMessage.value = 'Subiendo archivos...'
     uploadProgress.value = 30
 
-    const response = await fetch('http://localhost:5000/api/annotations/import', {
+    const result = await window.apiFetch('/api/annotations/import', {
       method: 'POST',
       body: formData
     })
@@ -226,12 +226,6 @@ async function importAnnotations() {
     uploadProgress.value = 60
     uploadMessage.value = 'Procesando anotaciones...'
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.message || 'Error al importar anotaciones')
-    }
-
-    const result = await response.json()
     uploadProgress.value = 100
     uploadMessage.value = 'Completado!'
 

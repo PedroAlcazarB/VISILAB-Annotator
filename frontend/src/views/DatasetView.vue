@@ -447,8 +447,7 @@ export default {
       
       // Recargar imágenes y anotaciones para actualizar la vista
       try {
-        await this.store.loadImages(this.dataset._id)
-        // También podríamos mostrar un mensaje de éxito
+        await this.loadDatasetData()
         alert(`✅ Importación completada: ${result.stats.annotations} anotaciones importadas`)
       } catch (error) {
         console.error('Error reloading data after import:', error)
@@ -527,11 +526,6 @@ export default {
     },
     
     // Métodos para herramientas de IA
-    handleModelLoaded(modelInfo) {
-      console.log('Model loaded:', modelInfo)
-      // Aquí puedes agregar lógica adicional cuando se carga un modelo
-    },
-    
     handleModelUnloaded() {
       console.log('Model unloaded')
       // Limpiar cualquier visualización de predicciones
@@ -559,7 +553,6 @@ export default {
       // Mostrar mensaje de éxito si está disponible
       if (updateData.message) {
         console.log(updateData.message)
-        // Opcional: mostrar una notificación toast aquí
       }
     },
     

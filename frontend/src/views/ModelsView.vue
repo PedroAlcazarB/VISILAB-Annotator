@@ -224,17 +224,11 @@ export default {
     async loadModels() {
       this.loading = true
       try {
-        const response = await fetch('http://localhost:5000/api/ai/saved-models')
-        const result = await response.json()
-        
-        if (response.ok) {
-          this.preloadedModels = result.preloaded || []
-          this.customModels = result.custom || []
-        } else {
-          console.error('Error al cargar modelos:', result.error)
-        }
+        const result = await this.$apiGet('/api/ai/saved-models')
+        this.preloadedModels = result.preloaded || []
+        this.customModels = result.custom || []
       } catch (error) {
-        console.error('Error de conexión:', error)
+        console.error('Error al cargar modelos:', error)
       } finally {
         this.loading = false
       }
@@ -272,29 +266,23 @@ export default {
           formData.append('yaml_file', this.newModel.yamlFile)
         }
         
-        const response = await fetch('http://localhost:5000/api/ai/load-model', {
+        await window.apiFetch('/api/ai/load-model', {
           method: 'POST',
           body: formData
         })
         
-        const result = await response.json()
+        this.uploadSuccess = 'Modelo subido exitosamente'
         
-        if (response.ok) {
-          this.uploadSuccess = 'Modelo subido exitosamente'
-          
-          // Recargar lista de modelos
-          await this.loadModels()
-          
-          // Limpiar formulario después de un delay
-          setTimeout(() => {
-            this.closeUploadModal()
-          }, 1500)
-        } else {
-          this.uploadError = result.error || 'Error al subir el modelo'
-        }
+        // Recargar lista de modelos
+        await this.loadModels()
+        
+        // Limpiar formulario después de un delay
+        setTimeout(() => {
+          this.closeUploadModal()
+        }, 1500)
       } catch (error) {
         console.error('Error uploading model:', error)
-        this.uploadError = 'Error de conexión al subir el modelo'
+        this.uploadError = error.message || 'Error al subir el modelo'
       } finally {
         this.uploading = false
       }
@@ -306,20 +294,12 @@ export default {
       }
       
       try {
-        const response = await fetch(`http://localhost:5000/api/ai/models/${model.id}`, {
-          method: 'DELETE'
-        })
-        
-        if (response.ok) {
-          // Recargar modelos
-          await this.loadModels()
-        } else {
-          const result = await response.json()
-          alert('Error al eliminar el modelo: ' + (result.error || 'Error desconocido'))
-        }
+        await this.$apiDelete(`/api/ai/models/${model.id}`)
+        // Recargar modelos
+        await this.loadModels()
       } catch (error) {
         console.error('Error deleting model:', error)
-        alert('Error de conexión al eliminar el modelo')
+        alert('Error al eliminar el modelo: ' + error.message)
       }
     },
 

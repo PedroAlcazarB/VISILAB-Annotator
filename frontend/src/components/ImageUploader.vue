@@ -177,17 +177,12 @@ const uploadZipFile = async (zipFile) => {
   formData.append('file', zipFile)
   formData.append('dataset_id', props.datasetId)
   
-  const response = await fetch('http://localhost:5000/api/datasets/import-images', {
+  // Usar apiFetch que maneja FormData correctamente
+  const data = await window.apiFetch('/api/datasets/import-images', {
     method: 'POST',
     body: formData
   })
   
-  if (!response.ok) {
-    const errorData = await response.json()
-    throw new Error(errorData.error || 'Error al procesar el archivo ZIP')
-  }
-  
-  const data = await response.json()
   const images = data.images || []
   
   // Añadir las imágenes al store para que se reflejen inmediatamente

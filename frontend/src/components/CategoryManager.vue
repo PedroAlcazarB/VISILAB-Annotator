@@ -374,15 +374,11 @@ async function loadAllCategoriesAndDatasets() {
   loadingAllCategories.value = true
   try {
     // Cargar todas las categorías (sin filtro de dataset)
-    const categoriesResponse = await fetch('http://localhost:5000/api/categories')
-    if (!categoriesResponse.ok) throw new Error('Error al cargar categorías')
-    const categoriesData = await categoriesResponse.json()
+    const categoriesData = await window.$apiGet('/api/categories')
     allCategories.value = categoriesData.categories || []
     
     // Cargar todos los datasets para mostrar nombres
-    const datasetsResponse = await fetch('http://localhost:5000/api/datasets')
-    if (!datasetsResponse.ok) throw new Error('Error al cargar datasets')
-    const datasetsData = await datasetsResponse.json()
+    const datasetsData = await window.$apiGet('/api/datasets')
     allDatasets.value = datasetsData.datasets || []
   } catch (error) {
     console.error('Error al cargar datos para importación:', error)
