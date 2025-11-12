@@ -32,7 +32,7 @@ export const useAnnotationStore = defineStore('annotation', {
       }
     },
 
-    // Historial de acciones por imagen (máximo 3 pasos)
+    // Historial de acciones por imagen (máximo 3)
     undoStacks: {}
   }),
   

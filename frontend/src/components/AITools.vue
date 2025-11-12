@@ -15,66 +15,87 @@
       </div>
       
       <div v-else>
-        <!-- Lista de modelos precargados -->
-        <div v-if="preloadedModels.length > 0" class="models-list">
-          <div 
-            v-for="model in preloadedModels" 
-            :key="model.id"
-            class="model-item"
-            :class="{
-              'active': isModelLoaded && loadedModelId === model.id,
-              'loading': isLoadingModel && selectedSavedModel === model.id
-            }"
-          >
-            <div class="model-info">
-              <div class="model-name">
-                <i class="fas fa-star"></i>
-                <strong>{{ model.name }}</strong>
-              </div>
-              <small class="model-meta">{{ model.categories?.length || 0 }} categorías</small>
+        <!-- Desplegable de modelos precargados -->
+        <div v-if="preloadedModels.length > 0" class="models-accordion">
+          <div class="accordion-header" @click="togglePreloadedModels">
+            <div class="accordion-title">
+              <i class="fas fa-star"></i>
+              <strong>Modelos Precargados</strong>
+              <span class="model-count">({{ preloadedModels.length }})</span>
             </div>
-            <button 
-              class="btn-load"
-              :class="{ 'active': isModelLoaded && loadedModelId === model.id }"
-              :disabled="isLoadingModel || (isModelLoaded && loadedModelId === model.id)"
-              @click="selectAndLoadModel(model.id)"
-            >
-              <i v-if="isLoadingModel && selectedSavedModel === model.id" class="fas fa-spinner fa-spin"></i>
-              <i v-else-if="isModelLoaded && loadedModelId === model.id" class="fas fa-check"></i>
-              <i v-else class="fas fa-play"></i>
-            </button>
+            <i class="fas fa-chevron-down accordion-icon" :class="{ 'expanded': showPreloadedModels }"></i>
+          </div>
+          <div v-show="showPreloadedModels" class="accordion-content">
+            <div class="models-list">
+              <div 
+                v-for="model in preloadedModels" 
+                :key="model.id"
+                class="model-item"
+                :class="{
+                  'active': isModelLoaded && loadedModelId === model.id,
+                  'loading': isLoadingModel && selectedSavedModel === model.id
+                }"
+              >
+                <div class="model-info">
+                  <div class="model-name">
+                    <strong>{{ model.name }}</strong>
+                  </div>
+                  <small class="model-meta">{{ model.categories?.length || 0 }} categorías</small>
+                </div>
+                <button 
+                  class="btn-load"
+                  :class="{ 'active': isModelLoaded && loadedModelId === model.id }"
+                  :disabled="isLoadingModel || (isModelLoaded && loadedModelId === model.id)"
+                  @click="selectAndLoadModel(model.id)"
+                >
+                  <i v-if="isLoadingModel && selectedSavedModel === model.id" class="fas fa-spinner fa-spin"></i>
+                  <i v-else-if="isModelLoaded && loadedModelId === model.id" class="fas fa-check"></i>
+                  <i v-else class="fas fa-play"></i>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
         
-        <!-- Lista de modelos personalizados -->
-        <div v-if="customModels.length > 0" class="models-list custom-models">
-          <div class="section-label">Modelos personalizados</div>
-          <div 
-            v-for="model in customModels" 
-            :key="model.id"
-            class="model-item"
-            :class="{
-              'active': isModelLoaded && loadedModelId === model.id,
-              'loading': isLoadingModel && selectedSavedModel === model.id
-            }"
-          >
-            <div class="model-info">
-              <div class="model-name">
-                <i class="fas fa-cube"></i>
-                <strong>{{ model.name }}</strong>
-              </div>
-              <small class="model-meta">{{ model.categories?.length || 0 }} categorías</small>
+        <!-- Desplegable de modelos personalizados -->
+        <div v-if="customModels.length > 0" class="models-accordion">
+          <div class="accordion-header" @click="toggleCustomModels">
+            <div class="accordion-title">
+              <i class="fas fa-cube"></i>
+              <strong>Modelos Personalizados</strong>
+              <span class="model-count">({{ customModels.length }})</span>
             </div>
-            <button 
-              class="btn-load"
-              :class="{ 'active': isModelLoaded && loadedModelId === model.id }"
-              :disabled="isLoadingModel || (isModelLoaded && loadedModelId === model.id)"
-              @click="selectAndLoadModel(model.id)"
-            >
-              <i v-if="isLoadingModel && selectedSavedModel === model.id" class="fas fa-spinner fa-spin"></i>
-              <i v-else-if="isModelLoaded && loadedModelId === model.id" class="fas fa-check"></i>
-              <i v-else class="fas fa-play"></i>
-            </button>
+            <i class="fas fa-chevron-down accordion-icon" :class="{ 'expanded': showCustomModels }"></i>
+          </div>
+          <div v-show="showCustomModels" class="accordion-content">
+            <div class="models-list">
+              <div 
+                v-for="model in customModels" 
+                :key="model.id"
+                class="model-item"
+                :class="{
+                  'active': isModelLoaded && loadedModelId === model.id,
+                  'loading': isLoadingModel && selectedSavedModel === model.id
+                }"
+              >
+                <div class="model-info">
+                  <div class="model-name">
+                    <strong>{{ model.name }}</strong>
+                  </div>
+                  <small class="model-meta">{{ model.categories?.length || 0 }} categorías</small>
+                </div>
+                <button 
+                  class="btn-load"
+                  :class="{ 'active': isModelLoaded && loadedModelId === model.id }"
+                  :disabled="isLoadingModel || (isModelLoaded && loadedModelId === model.id)"
+                  @click="selectAndLoadModel(model.id)"
+                >
+                  <i v-if="isLoadingModel && selectedSavedModel === model.id" class="fas fa-spinner fa-spin"></i>
+                  <i v-else-if="isModelLoaded && loadedModelId === model.id" class="fas fa-check"></i>
+                  <i v-else class="fas fa-play"></i>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -245,6 +266,10 @@ export default {
       selectedSavedModel: '',
       isLoadingSavedModels: false,
       
+      // Estado de los desplegables
+      showPreloadedModels: false,
+      showCustomModels: false,
+      
       // Configuración de predicción
       confidence: 0.5,
       isPredicting: false,
@@ -294,6 +319,14 @@ export default {
   },
   
   methods: {
+    togglePreloadedModels() {
+      this.showPreloadedModels = !this.showPreloadedModels
+    },
+    
+    toggleCustomModels() {
+      this.showCustomModels = !this.showCustomModels
+    },
+    
     async loadSavedModelsList() {
       this.isLoadingSavedModels = true
       try {
@@ -505,45 +538,110 @@ export default {
   font-size: 0.9rem;
 }
 
+.models-accordion {
+  margin-bottom: 12px;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  overflow: hidden;
+  background: white;
+}
+
+.accordion-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 15px;
+  background: #f8f9fa;
+  cursor: pointer;
+  transition: background 0.2s;
+  user-select: none;
+}
+
+.accordion-header:hover {
+  background: #e9ecef;
+}
+
+.accordion-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #495057;
+}
+
+.accordion-title i {
+  color: #f59e0b;
+}
+
+.accordion-title i.fa-cube {
+  color: #3b82f6;
+}
+
+.accordion-title strong {
+  font-weight: 600;
+}
+
+.model-count {
+  font-size: 0.85rem;
+  color: #6c757d;
+  font-weight: normal;
+}
+
+.accordion-icon {
+  color: #6c757d;
+  transition: transform 0.3s ease;
+  font-size: 0.85rem;
+}
+
+.accordion-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.accordion-content {
+  padding: 12px;
+  background: white;
+  border-top: 1px solid #e9ecef;
+  animation: slideDown 0.3s ease;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .models-list {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-bottom: 15px;
-}
-
-.models-list.custom-models {
-  margin-top: 15px;
-}
-
-.section-label {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #6c757d;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 8px;
 }
 
 .model-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px;
+  padding: 10px 12px;
   background: #f8f9fa;
   border: 1px solid #e9ecef;
-  border-radius: 6px;
+  border-radius: 4px;
   transition: all 0.2s;
 }
 
 .model-item:hover {
   background: #e9ecef;
   border-color: #dee2e6;
+  transform: translateX(2px);
 }
 
 .model-item.active {
   background: #d4edda;
   border-color: #c3e6cb;
+  box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.1);
 }
 
 .model-item.loading {

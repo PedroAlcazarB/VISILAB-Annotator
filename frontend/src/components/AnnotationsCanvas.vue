@@ -1501,7 +1501,7 @@ function getCurrentCategoryForPrediction(prediction) {
     return store.categories[0].id
   }
   
-  // Si no hay categorías, retornar null (esto debería manejarse en la UI)
+  // Si no hay categorías, retornar null
   return null
 }
 

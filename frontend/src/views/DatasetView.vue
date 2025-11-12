@@ -32,23 +32,38 @@
     <!-- Barra lateral de acciones -->
     <div class="content-wrapper">
       <div class="sidebar">
-        <div class="action-btn active">
-          <i class="fas fa-images"></i>
-          Imágenes
+        <div class="sidebar-header">
+          <i class="fas fa-chart-bar"></i>
+          <h3>Estadísticas</h3>
         </div>
-        
-        <div class="stats">
-          <div class="stat-item">
-            <strong>Imágenes:</strong> {{ images.length }}
+        <div class="sidebar-stats-cards">
+          <div class="sidebar-stat-card">
+            <i class="fas fa-images sidebar-stat-icon sidebar-icon-images"></i>
+            <div class="sidebar-stat-info">
+              <span class="sidebar-stat-label">Imágenes</span>
+              <span class="sidebar-stat-value">{{ images.length }}</span>
+            </div>
           </div>
-          <div class="stat-item">
-            <strong>Annotations:</strong> {{ totalAnnotations }}
+          <div class="sidebar-stat-card">
+            <i class="fas fa-tags sidebar-stat-icon sidebar-icon-annotations"></i>
+            <div class="sidebar-stat-info">
+              <span class="sidebar-stat-label">Anotaciones</span>
+              <span class="sidebar-stat-value">{{ totalAnnotations }}</span>
+            </div>
           </div>
-          <div class="stat-item">
-            <strong>Con anotaciones:</strong> {{ imagesWithAnnotationsCount }}
+          <div class="sidebar-stat-card">
+            <i class="fas fa-check-circle sidebar-stat-icon sidebar-icon-with"></i>
+            <div class="sidebar-stat-info">
+              <span class="sidebar-stat-label">Con anotaciones</span>
+              <span class="sidebar-stat-value">{{ imagesWithAnnotationsCount }}</span>
+            </div>
           </div>
-          <div class="stat-item">
-            <strong>Sin anotaciones:</strong> {{ imagesWithoutAnnotationsCount }}
+          <div class="sidebar-stat-card">
+            <i class="fas fa-times sidebar-stat-icon sidebar-icon-without"></i>
+            <div class="sidebar-stat-info">
+              <span class="sidebar-stat-label">Sin anotaciones</span>
+              <span class="sidebar-stat-value">{{ imagesWithoutAnnotationsCount }}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -523,6 +538,11 @@ export default {
           contentArea.scrollTop = 0
         }
       }
+    },
+    
+    // Métodos para herramientas de IA
+    handleModelLoaded(modelInfo) {
+      console.log('Model loaded:', modelInfo)
     },
     
     handleModelUnloaded() {
@@ -1220,12 +1240,12 @@ export default {
   background: white;
   color: #3498db;
   border: 1px solid #3498db;
-  padding: 0.4rem 0.6rem; /* Más compacto */
+  padding: 0.4rem 0.6rem;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 0.8rem; /* Texto más pequeño */
+  font-size: 0.8rem;
   font-weight: 500;
-  min-width: 36px; /* Más pequeño */
+  min-width: 36px;
   transition: all 0.2s ease;
 }
 
@@ -1255,6 +1275,86 @@ export default {
   color: #bdc3c7;
 }
 
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 15px;
+  margin-bottom: 18px;
+  border-bottom: 1px solid #495057;
+}
+.sidebar-header i {
+  font-size: 1.15rem;
+  color: #adb5bd;
+}
+.sidebar-header h3 {
+  margin: 0;
+  font-size: 1.08rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+.sidebar-stats-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.sidebar-stat-card {
+  background: #495057;
+  border-radius: 8px;
+  padding: 7px 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: box-shadow 0.18s, background 0.18s;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.10);
+  border: 1px solid #3a3f44;
+}
+.sidebar-stat-card:hover {
+  background: #5a6268;
+  box-shadow: 0 4px 16px rgba(52,152,219,0.10);
+}
+.sidebar-stat-icon {
+  font-size: 1rem;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+}
+.sidebar-icon-images {
+  color: #3498db;
+  background: rgba(52, 152, 219, 0.15);
+}
+.sidebar-icon-annotations {
+  color: #f39c12;
+  background: rgba(243, 156, 18, 0.15);
+}
+.sidebar-icon-with {
+  color: #28a745;
+  background: rgba(40,167,69,0.12);
+}
+.sidebar-icon-without {
+  color: #e74c3c;
+  background: rgba(231,76,60,0.12);
+}
+.sidebar-stat-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sidebar-stat-label {
+  font-size: 0.78rem;
+  color: #ced4da;
+  font-weight: 500;
+}
+.sidebar-stat-value {
+  font-size: 1.08rem;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
 /* Media queries adicionales para optimizar la distribución */
 @media (max-width: 1200px) {
   .image-grid {
@@ -1278,7 +1378,7 @@ export default {
     min-height: 120px;
     max-height: 160px;
   }
-  
+
   .filename {
     font-size: 0.75rem;
   }

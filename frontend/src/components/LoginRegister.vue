@@ -9,12 +9,6 @@
           datos de entrenamiento para localización de imágenes y detección de objetos.
         </p>
         <p class="auth-hint">Inicia sesión para crear datasets</p>
-        <p class="auth-link">
-          Descubre más en 
-          <a href="https://github.com/PedroAlcazarB/VISILAB-Annotator" target="_blank" class="github-link">
-            GitHub
-          </a>
-        </p>
       </div>
 
       <div class="auth-right">
