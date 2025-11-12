@@ -93,6 +93,110 @@
             </label>
             <small>Excluir imágenes sin anotaciones</small>
           </div>
+
+          <div class="option-item">
+            <label>
+              <input type="checkbox" v-model="enableSplit" />
+              <span>Dividir en Train/Val/Test</span>
+            </label>
+            <small>Divide las imágenes en conjuntos de entrenamiento, validación y test de forma aleatoria</small>
+          </div>
+
+          <!-- Configuración de división -->
+          <div v-if="enableSplit" class="split-config">
+            <div class="split-header">
+              <h4>Configuración de división</h4>
+              <span class="total-percentage" :class="{ 'invalid': totalPercentage !== 100 }">
+                Total: {{ totalPercentage }}%
+                <i v-if="totalPercentage !== 100" class="fas fa-exclamation-triangle"></i>
+              </span>
+            </div>
+            
+            <div class="split-item">
+              <label>
+                <i class="fas fa-graduation-cap"></i>
+                <span>Entrenamiento</span>
+              </label>
+              <div class="slider-container">
+                <input 
+                  type="range" 
+                  v-model.number="trainPercentage" 
+                  min="0" 
+                  max="100" 
+                  step="5"
+                  class="percentage-slider"
+                />
+                <input 
+                  type="number" 
+                  v-model.number="trainPercentage" 
+                  min="0" 
+                  max="100" 
+                  class="percentage-input"
+                />
+                <span class="percentage-label">%</span>
+              </div>
+            </div>
+
+            <div class="split-item">
+              <label>
+                <i class="fas fa-clipboard-check"></i>
+                <span>Validación</span>
+              </label>
+              <div class="slider-container">
+                <input 
+                  type="range" 
+                  v-model.number="valPercentage" 
+                  min="0" 
+                  max="100" 
+                  step="5"
+                  class="percentage-slider"
+                />
+                <input 
+                  type="number" 
+                  v-model.number="valPercentage" 
+                  min="0" 
+                  max="100" 
+                  class="percentage-input"
+                />
+                <span class="percentage-label">%</span>
+              </div>
+            </div>
+
+            <div class="split-item">
+              <label>
+                <i class="fas fa-vial"></i>
+                <span>Test</span>
+              </label>
+              <div class="slider-container">
+                <input 
+                  type="range" 
+                  v-model.number="testPercentage" 
+                  min="0" 
+                  max="100" 
+                  step="5"
+                  class="percentage-slider"
+                />
+                <input 
+                  type="number" 
+                  v-model.number="testPercentage" 
+                  min="0" 
+                  max="100" 
+                  class="percentage-input"
+                />
+                <span class="percentage-label">%</span>
+              </div>
+            </div>
+
+            <div v-if="totalPercentage !== 100" class="split-warning">
+              <i class="fas fa-exclamation-triangle"></i>
+              <span>La suma de los porcentajes debe ser 100%</span>
+            </div>
+
+            <div class="split-info">
+              <i class="fas fa-info-circle"></i>
+              <span>La división se realizará de forma aleatoria. Cada imagen será asignada a un único conjunto (train, val o test).</span>
+            </div>
+          </div>
         </div>
 
         <!-- Botones de acción -->
@@ -165,10 +269,19 @@ export default {
       selectedFormat: 'coco',
       includeImages: false,
       onlyAnnotated: true,
+      enableSplit: false,
+      trainPercentage: 80,
+      valPercentage: 10,
+      testPercentage: 10,
       exporting: false,
       progress: 0,
       progressMessage: '',
       exportResult: null
+    }
+  },
+  computed: {
+    totalPercentage() {
+      return this.trainPercentage + this.valPercentage + this.testPercentage
     }
   },
   methods: {
@@ -182,12 +295,22 @@ export default {
       this.selectedFormat = 'coco'
       this.includeImages = false
       this.onlyAnnotated = true
+      this.enableSplit = false
+      this.trainPercentage = 80
+      this.valPercentage = 10
+      this.testPercentage = 10
       this.exporting = false
       this.progress = 0
       this.progressMessage = ''
       this.exportResult = null
     },
     async exportAnnotations() {
+      // Validar que los porcentajes sumen 100 si la división está habilitada
+      if (this.enableSplit && this.totalPercentage !== 100) {
+        alert('La suma de los porcentajes debe ser 100%')
+        return
+      }
+
       this.exporting = true
       this.progress = 0
       this.exportResult = null
@@ -198,8 +321,16 @@ export default {
         const params = new URLSearchParams({
           format: this.selectedFormat,
           include_images: this.includeImages,
-          only_annotated: this.onlyAnnotated
+          only_annotated: this.onlyAnnotated,
+          enable_split: this.enableSplit
         })
+
+        // Agregar porcentajes si la división está habilitada
+        if (this.enableSplit) {
+          params.append('train_percentage', this.trainPercentage)
+          params.append('val_percentage', this.valPercentage)
+          params.append('test_percentage', this.testPercentage)
+        }
 
         this.progressMessage = 'Generando archivo de exportación...'
         this.progress = 30
@@ -231,17 +362,16 @@ export default {
         const blob = await response.blob()
         
         // Determinar el nombre del archivo y extensión
-        let filename = `${this.datasetId}_annotations`
+        let filename = `${this.datasetId}_${this.selectedFormat}`
         let extension = ''
-        
-        switch (this.selectedFormat) {
-          case 'coco':
-            extension = '.json'
-            break
-          case 'yolo':
-          case 'pascal':
-            extension = '.zip'
-            break
+
+        // Lógica corregida que coincide con el backend
+        if (this.selectedFormat === 'coco' && !this.enableSplit && !this.includeImages) {
+            // Este es el ÚNICO caso que descarga un JSON
+          extension = '.json'
+        } else {
+           // Todos los demás casos (YOLO, Pascal, o COCO con split/imágenes) son ZIP
+          extension = '.zip'
         }
         
         filename += extension
@@ -536,6 +666,171 @@ export default {
   color: #666;
   font-size: 12px;
   margin-top: 4px;
+}
+
+.split-config {
+  margin-top: 16px;
+  padding: 16px;
+  background: white;
+  border-radius: 6px;
+  border: 2px solid #2196F3;
+}
+
+.split-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.split-header h4 {
+  margin: 0;
+  font-size: 15px;
+  color: #333;
+}
+
+.total-percentage {
+  font-size: 14px;
+  font-weight: 600;
+  color: #4CAF50;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.total-percentage.invalid {
+  color: #f44336;
+}
+
+.total-percentage i {
+  font-size: 14px;
+}
+
+.split-item {
+  margin-bottom: 16px;
+}
+
+.split-item:last-of-type {
+  margin-bottom: 0;
+}
+
+.split-item label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #333;
+}
+
+.split-item label i {
+  color: #2196F3;
+  width: 18px;
+}
+
+.slider-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.percentage-slider {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  outline: none;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #e0e0e0;
+}
+
+.percentage-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #2196F3;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.percentage-slider::-webkit-slider-thumb:hover {
+  background: #1976D2;
+  transform: scale(1.2);
+}
+
+.percentage-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #2196F3;
+  cursor: pointer;
+  border: none;
+  transition: all 0.2s;
+}
+
+.percentage-slider::-moz-range-thumb:hover {
+  background: #1976D2;
+  transform: scale(1.2);
+}
+
+.percentage-input {
+  width: 60px;
+  padding: 6px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  text-align: center;
+  outline: none;
+}
+
+.percentage-input:focus {
+  border-color: #2196F3;
+}
+
+.percentage-label {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+.split-warning {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  color: #856404;
+  font-size: 13px;
+  margin-top: 12px;
+}
+
+.split-warning i {
+  font-size: 16px;
+}
+
+.split-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: #e3f2fd;
+  border: 1px solid #2196F3;
+  border-radius: 4px;
+  color: #1565C0;
+  font-size: 12px;
+  margin-top: 12px;
+  line-height: 1.4;
+}
+
+.split-info i {
+  font-size: 14px;
+  margin-top: 1px;
+  flex-shrink: 0;
 }
 
 .modal-actions {

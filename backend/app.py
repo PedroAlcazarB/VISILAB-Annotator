@@ -1848,7 +1848,6 @@ def reprocess_images_from_folder(current_user_id, dataset_id):
         # Verificar que el dataset existe y pertenece al usuario
         dataset = db.datasets.find_one({
             '_id': ObjectId(dataset_id),
-            'user_id': ObjectId(current_user_id)
         })
         if not dataset:
             return jsonify({'error': 'Dataset no encontrado o no autorizado'}), 403
@@ -2571,6 +2570,356 @@ def health_check():
             'timestamp': datetime.utcnow().isoformat()
         }), 500
 
+# ==================== FUNCIONES AUXILIARES PARA DIVISIÓN DE DATASET ====================
+
+def split_dataset_random(images, train_pct, val_pct, test_pct):
+    """
+    Divide una lista de imágenes aleatoriamente en train/val/test
+    según los porcentajes dados.
+    """
+    import random
+    
+    # 1. Barajar la lista de imágenes aleatoriamente
+    random.shuffle(images)
+    
+    # 2. Calcular los puntos de corte
+    total_images = len(images)
+    train_count = int(total_images * (train_pct / 100))
+    val_count = int(total_images * (val_pct / 100))
+    
+    # 3. Cortar la lista en tres partes
+    train_images = images[0:train_count]
+    val_images = images[train_count : train_count + val_count]
+    test_images = images[train_count + val_count:] # El resto va a test
+    
+    print(f"División aleatoria: {len(train_images)} train, {len(val_images)} val, {len(test_images)} test")
+    
+    return train_images, val_images, test_images
+
+def export_coco_format_with_split(dataset, train_images, val_images, test_images, 
+                                   annotations, categories, include_images, db):
+    """Exportar en formato COCO con división train/val/test"""
+    from flask import Response
+    import tempfile
+    
+    # Crear archivo ZIP
+    temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+    
+    try:
+        with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # Exportar cada conjunto
+            for split_name, split_images in [('train', train_images), 
+                                              ('val', val_images), 
+                                              ('test', test_images)]:
+                if not split_images:
+                    continue
+                
+                # Filtrar anotaciones para este conjunto
+                split_image_ids = [str(img['_id']) for img in split_images]
+                split_annotations = [ann for ann in annotations 
+                                    if ann['image_id'] in split_image_ids]
+                
+                # Crear estructura COCO para este conjunto
+                coco_data = create_coco_structure(dataset, split_images, 
+                                                 split_annotations, categories)
+                
+                # Guardar JSON
+                zf.writestr(f'{split_name}/annotations.json', 
+                           json.dumps(coco_data, indent=2))
+                
+                # Si incluye imágenes, agregarlas
+                if include_images:
+                    for img in split_images:
+                        img_doc = db.images.find_one({'_id': ObjectId(img['_id'])})
+                        if img_doc and 'data' in img_doc:
+                            image_data = img_doc['data']
+                            zf.writestr(f"{split_name}/images/{img['filename']}", 
+                                       image_data)
+        
+        with open(temp_zip.name, 'rb') as f:
+            zip_data = f.read()
+        
+        os.unlink(temp_zip.name)
+        
+        return Response(
+            zip_data,
+            mimetype='application/zip',
+            headers={'Content-Disposition': f'attachment; filename={dataset["name"]}_coco_split.zip'}
+        )
+    except Exception as e:
+        if os.path.exists(temp_zip.name):
+            os.unlink(temp_zip.name)
+        raise e
+
+def create_coco_structure(dataset, images, annotations, categories):
+    """Crea la estructura COCO JSON"""
+    coco_data = {
+        'info': {
+            'description': dataset.get('name', 'Dataset'),
+            'date_created': datetime.utcnow().isoformat(),
+            'version': '1.0'
+        },
+        'images': [],
+        'annotations': [],
+        'categories': []
+    }
+    
+    # Mapear categorías
+    category_map = {}
+    for idx, cat in enumerate(categories, start=1):
+        cat_id = idx
+        category_map[str(cat['_id'])] = cat_id
+        coco_data['categories'].append({
+            'id': cat_id,
+            'name': cat['name'],
+            'supercategory': 'object',
+            'color': cat.get('color', '#FF0000')
+        })
+    
+    # Mapear imágenes
+    image_map = {}
+    for idx, img in enumerate(images, start=1):
+        img_id = idx
+        image_map[str(img['_id'])] = img_id
+        coco_data['images'].append({
+            'id': img_id,
+            'file_name': img['filename'],
+            'width': img.get('width', 0),
+            'height': img.get('height', 0),
+            'date_captured': img.get('created_at', datetime.utcnow()).isoformat()
+        })
+    
+    # Mapear anotaciones
+    for idx, ann in enumerate(annotations, start=1):
+        image_id = image_map.get(ann['image_id'])
+        category_id = category_map.get(ann['category_id'])
+        
+        if not image_id or not category_id:
+            continue
+        
+        bbox = ann.get('bbox', [0, 0, 0, 0])
+        
+        # Si la anotación tiene puntos, es un polígono
+        if 'points' in ann and ann['points'] and len(ann['points']) > 0:
+            points = ann['points']
+            segmentation = []
+            for point in points:
+                if len(point) >= 2:
+                    segmentation.extend([point[0], point[1]])
+            
+            if segmentation and len(segmentation) >= 6:
+                x_coords = [segmentation[i] for i in range(0, len(segmentation), 2)]
+                y_coords = [segmentation[i] for i in range(1, len(segmentation), 2)]
+                
+                x_min, x_max = min(x_coords), max(x_coords)
+                y_min, y_max = min(y_coords), max(y_coords)
+                
+                bbox = [x_min, y_min, x_max - x_min, y_max - y_min]
+                
+                area = 0
+                n = len(x_coords)
+                for i in range(n):
+                    j = (i + 1) % n
+                    area += x_coords[i] * y_coords[j]
+                    area -= x_coords[j] * y_coords[i]
+                area = abs(area) / 2.0
+            else:
+                area = bbox[2] * bbox[3] if len(bbox) >= 4 else 0
+                
+            ann_data = {
+                'id': idx,
+                'image_id': image_id,
+                'category_id': category_id,
+                'bbox': bbox,
+                'area': area,
+                'segmentation': [segmentation],
+                'iscrowd': 0
+            }
+        else:
+            area = bbox[2] * bbox[3] if len(bbox) >= 4 else 0
+            
+            ann_data = {
+                'id': idx,
+                'image_id': image_id,
+                'category_id': category_id,
+                'bbox': bbox,
+                'area': area,
+                'iscrowd': 0
+            }
+            
+            if 'segmentation' in ann and ann['segmentation']:
+                ann_data['segmentation'] = ann['segmentation']
+        
+        coco_data['annotations'].append(ann_data)
+    
+    return coco_data
+
+def export_yolo_format_with_split(dataset, train_images, val_images, test_images,
+                                   annotations, categories, include_images, db):
+    """Exportar en formato YOLO con división train/val/test"""
+    from flask import Response
+    import tempfile
+    
+    temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+    
+    try:
+        with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # Crear archivo de clases
+            classes_content = '\n'.join([cat['name'] for cat in categories])
+            zf.writestr('classes.txt', classes_content)
+            
+            # Mapeo de categorías a índices
+            category_map = {str(cat['_id']): idx for idx, cat in enumerate(categories)}
+            
+            # Exportar cada conjunto
+            for split_name, split_images in [('train', train_images), 
+                                              ('val', val_images), 
+                                              ('test', test_images)]:
+                if not split_images:
+                    continue
+                
+                for img in split_images:
+                    img_id = str(img['_id'])
+                    img_annotations = [ann for ann in annotations if ann['image_id'] == img_id]
+                    
+                    # Crear archivo YOLO para esta imagen
+                    yolo_lines = []
+                    for ann in img_annotations:
+                        cat_idx = category_map.get(ann['category_id'])
+                        if cat_idx is None:
+                            continue
+                        
+                        bbox = ann.get('bbox', [0, 0, 0, 0])
+                        if len(bbox) < 4:
+                            continue
+                        
+                        # Convertir bbox COCO [x, y, width, height] a YOLO [center_x, center_y, width, height] normalizado
+                        img_width = img.get('width', 1)
+                        img_height = img.get('height', 1)
+                        
+                        center_x = (bbox[0] + bbox[2] / 2) / img_width
+                        center_y = (bbox[1] + bbox[3] / 2) / img_height
+                        width = bbox[2] / img_width
+                        height = bbox[3] / img_height
+                        
+                        yolo_lines.append(f"{cat_idx} {center_x:.6f} {center_y:.6f} {width:.6f} {height:.6f}")
+                    
+                    # Guardar archivo de anotaciones
+                    txt_filename = os.path.splitext(img['filename'])[0] + '.txt'
+                    zf.writestr(f'{split_name}/labels/{txt_filename}', '\n'.join(yolo_lines))
+                    
+                    # Si incluye imágenes, agregarlas
+                    if include_images:
+                        img_doc = db.images.find_one({'_id': ObjectId(img['_id'])})
+                        if img_doc and 'data' in img_doc:
+                            image_data = img_doc['data']
+                            zf.writestr(f"{split_name}/images/{img['filename']}", image_data)
+        
+        with open(temp_zip.name, 'rb') as f:
+            zip_data = f.read()
+        
+        os.unlink(temp_zip.name)
+        
+        return Response(
+            zip_data,
+            mimetype='application/zip',
+            headers={'Content-Disposition': f'attachment; filename={dataset["name"]}_yolo_split.zip'}
+        )
+    except Exception as e:
+        if os.path.exists(temp_zip.name):
+            os.unlink(temp_zip.name)
+        raise e
+
+def export_pascal_format_with_split(dataset, train_images, val_images, test_images,
+                                     annotations, categories, include_images, db):
+    """Exportar en formato Pascal VOC con división train/val/test"""
+    from flask import Response
+    import tempfile
+    from xml.etree.ElementTree import Element, SubElement, tostring
+    from xml.dom import minidom
+    
+    temp_zip = tempfile.NamedTemporaryFile(delete=False, suffix='.zip')
+    
+    try:
+        with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zf:
+            # Mapeo de categorías
+            category_map = {str(cat['_id']): cat['name'] for cat in categories}
+            
+            # Exportar cada conjunto
+            for split_name, split_images in [('train', train_images), 
+                                              ('val', val_images), 
+                                              ('test', test_images)]:
+                if not split_images:
+                    continue
+                
+                for img in split_images:
+                    img_id = str(img['_id'])
+                    img_annotations = [ann for ann in annotations if ann['image_id'] == img_id]
+                    
+                    # Crear XML Pascal VOC
+                    annotation = Element('annotation')
+                    
+                    folder = SubElement(annotation, 'folder')
+                    folder.text = split_name
+                    
+                    filename = SubElement(annotation, 'filename')
+                    filename.text = img['filename']
+                    
+                    size = SubElement(annotation, 'size')
+                    width = SubElement(size, 'width')
+                    width.text = str(img.get('width', 0))
+                    height = SubElement(size, 'height')
+                    height.text = str(img.get('height', 0))
+                    depth = SubElement(size, 'depth')
+                    depth.text = '3'
+                    
+                    for ann in img_annotations:
+                        cat_name = category_map.get(ann['category_id'], 'unknown')
+                        bbox = ann.get('bbox', [0, 0, 0, 0])
+                        
+                        obj = SubElement(annotation, 'object')
+                        name = SubElement(obj, 'name')
+                        name.text = cat_name
+                        
+                        bndbox = SubElement(obj, 'bndbox')
+                        xmin = SubElement(bndbox, 'xmin')
+                        xmin.text = str(int(bbox[0]))
+                        ymin = SubElement(bndbox, 'ymin')
+                        ymin.text = str(int(bbox[1]))
+                        xmax = SubElement(bndbox, 'xmax')
+                        xmax.text = str(int(bbox[0] + bbox[2]))
+                        ymax = SubElement(bndbox, 'ymax')
+                        ymax.text = str(int(bbox[1] + bbox[3]))
+                    
+                    # Convertir a string XML formateado
+                    xml_str = minidom.parseString(tostring(annotation)).toprettyxml(indent='  ')
+                    
+                    # Guardar XML
+                    xml_filename = os.path.splitext(img['filename'])[0] + '.xml'
+                    zf.writestr(f'{split_name}/annotations/{xml_filename}', xml_str)
+                    
+                    # Si incluye imágenes, agregarlas
+                    if include_images:
+                        img_doc = db.images.find_one({'_id': ObjectId(img['_id'])})
+                        if img_doc and 'data' in img_doc:
+                            image_data = img_doc['data']
+                            zf.writestr(f"{split_name}/images/{img['filename']}", image_data)
+        
+        with open(temp_zip.name, 'rb') as f:
+            zip_data = f.read()
+        
+        os.unlink(temp_zip.name)
+        
+        return Response(
+            zip_data,
+            mimetype='application/zip',
+            headers={'Content-Disposition': f'attachment; filename={dataset["name"]}_pascal_split.zip'}
+        )
+    except Exception as e:
+        if os.path.exists(temp_zip.name):
+            os.unlink(temp_zip.name)
+        raise e
+
 # ==================== ENDPOINTS PARA EXPORTAR ANOTACIONES ====================
 
 @app.route('/api/annotations/export/<dataset_id>', methods=['GET'])
@@ -2583,7 +2932,7 @@ def export_annotations(current_user_id, dataset_id):
         # Verificar que el dataset pertenece al usuario
         dataset = db.datasets.find_one({
             '_id': ObjectId(dataset_id),
-            'user_id': ObjectId(current_user_id)
+            'user_id': current_user_id
         })
         if not dataset:
             return jsonify({'error': 'Dataset no encontrado o no autorizado'}), 403
@@ -2592,6 +2941,10 @@ def export_annotations(current_user_id, dataset_id):
         export_format = request.args.get('format', 'coco')  # coco, yolo, pascal
         include_images = request.args.get('include_images', 'false').lower() == 'true'
         only_annotated = request.args.get('only_annotated', 'true').lower() == 'true'
+        enable_split = request.args.get('enable_split', 'false').lower() == 'true'
+        train_percentage = float(request.args.get('train_percentage', 80))
+        val_percentage = float(request.args.get('val_percentage', 10))
+        test_percentage = float(request.args.get('test_percentage', 10))
         
         # Obtener dataset
         dataset = db.datasets.find_one({'_id': ObjectId(dataset_id)})
@@ -2617,14 +2970,37 @@ def export_annotations(current_user_id, dataset_id):
         
         print(f"Exportando: {len(images)} imágenes, {len(annotations)} anotaciones, {len(categories)} categorías")
         
-        if export_format == 'coco':
-            return export_coco_format(dataset, images, annotations, categories, include_images)
-        elif export_format == 'yolo':
-            return export_yolo_format(dataset, images, annotations, categories, include_images, db)
-        elif export_format == 'pascal':
-            return export_pascal_format(dataset, images, annotations, categories, include_images, db)
+        # Si está habilitada la división, dividir las imágenes
+        if enable_split:
+            train_images, val_images, test_images = split_dataset_random(
+                images, train_percentage, val_percentage, test_percentage
+            )
+            print(f"División: {len(train_images)} train, {len(val_images)} val, {len(test_images)} test")
+            
+            if export_format == 'coco':
+                return export_coco_format_with_split(
+                    dataset, train_images, val_images, test_images, 
+                    annotations, categories, include_images, db
+                )
+            elif export_format == 'yolo':
+                return export_yolo_format_with_split(
+                    dataset, train_images, val_images, test_images,
+                    annotations, categories, include_images, db
+                )
+            elif export_format == 'pascal':
+                return export_pascal_format_with_split(
+                    dataset, train_images, val_images, test_images,
+                    annotations, categories, include_images, db
+                )
         else:
-            return jsonify({'error': f'Formato no soportado: {export_format}'}), 400
+            if export_format == 'coco':
+                return export_coco_format(dataset, images, annotations, categories, include_images)
+            elif export_format == 'yolo':
+                return export_yolo_format(dataset, images, annotations, categories, include_images, db)
+            elif export_format == 'pascal':
+                return export_pascal_format(dataset, images, annotations, categories, include_images, db)
+            else:
+                return jsonify({'error': f'Formato no soportado: {export_format}'}), 400
             
     except InvalidId:
         return jsonify({'error': 'ID de dataset inválido'}), 400
@@ -2644,7 +3020,7 @@ def get_export_statistics(current_user_id, dataset_id):
         # Verificar que el dataset pertenece al usuario
         dataset = db.datasets.find_one({
             '_id': ObjectId(dataset_id),
-            'user_id': ObjectId(current_user_id)
+            'user_id': current_user_id
         })
         if not dataset:
             return jsonify({'error': 'Dataset no encontrado o no autorizado'}), 403
