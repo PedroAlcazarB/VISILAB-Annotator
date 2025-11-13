@@ -244,6 +244,14 @@ export default {
     datasetId: {
       type: String,
       required: true
+    },
+    canNavigatePrevious: {
+      type: Boolean,
+      default: false
+    },
+    canNavigateNext: {
+      type: Boolean,
+      default: false
     }
   },
   setup() {
@@ -282,20 +290,6 @@ export default {
   computed: {
     canPredict() {
       return this.isModelLoaded && this.currentImage && !this.isPredicting
-    },
-    
-    canNavigatePrevious() {
-      if (!this.currentImage) return false
-      const images = this.store.images
-      const currentIndex = images.findIndex(img => img._id === this.currentImage._id)
-      return currentIndex > 0
-    },
-    
-    canNavigateNext() {
-      if (!this.currentImage) return false
-      const images = this.store.images
-      const currentIndex = images.findIndex(img => img._id === this.currentImage._id)
-      return currentIndex < images.length - 1
     }
   },
   watch: {
@@ -465,23 +459,19 @@ export default {
     },
     
     goToPreviousImage() {
-      if (!this.canNavigatePrevious) return
-      
-      const images = this.store.images
-      const currentIndex = images.findIndex(img => img._id === this.currentImage._id)
-      const previousImage = images[currentIndex - 1]
-      
-      this.$emit('navigate-to-image', previousImage)
+      if (!this.canNavigatePrevious) {
+        return
+      }
+
+      this.$emit('navigate', 'previous')
     },
     
     goToNextImage() {
-      if (!this.canNavigateNext) return
-      
-      const images = this.store.images
-      const currentIndex = images.findIndex(img => img._id === this.currentImage._id)
-      const nextImage = images[currentIndex + 1]
-      
-      this.$emit('navigate-to-image', nextImage)
+      if (!this.canNavigateNext) {
+        return
+      }
+
+      this.$emit('navigate', 'next')
     }
   }
 }

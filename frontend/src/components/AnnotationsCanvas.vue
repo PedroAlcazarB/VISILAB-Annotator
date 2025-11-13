@@ -368,15 +368,6 @@
         />
       </v-layer>
     </v-stage>
-    
-    <!-- Debug canvas info -->
-    <div v-if="image" class="debug-canvas-info">
-      <p>Canvas: {{ stageWidth }}x{{ stageHeight }}</p>
-      <p>Imagen: {{ imageConfig.width }}x{{ imageConfig.height }} en ({{ imageConfig.x }}, {{ imageConfig.y }})</p>
-      <p>Zoom: {{ Math.round(scale * 100) }}% | Desplazamiento: ({{ Math.round(stagePos.x) }}, {{ Math.round(stagePos.y) }})</p>
-      <p v-if="props.activeTool === 'pan'"><small>�️ Herramienta Pan activa - Arrastra para mover la vista | Rueda para zoom | 'R' para resetear</small></p>
-      <p v-else><small>�💡 Usa la rueda del ratón para zoom | Tecla 'R' para resetear | Selecciona "Mover" para desplazarte</small></p>
-    </div>
   </div>
 </template>
 
@@ -436,7 +427,7 @@ const props = defineProps({
   imageId: [String, Number],
   activeTool: {
     type: String,
-    default: 'select'
+    default: 'edit'
   },
   toolSettings: {
     type: Object,
@@ -452,7 +443,11 @@ const imageConfig = reactive({
   x: 0,
   y: 0,
   width: 0,
-  height: 0
+  height: 0,
+  naturalWidth: 0,
+  naturalHeight: 0,
+  scaleX: 1,
+  scaleY: 1
 })
 
 const imageOffset = computed(() => ({
@@ -461,8 +456,13 @@ const imageOffset = computed(() => ({
 }))
 
 const imageBounds = computed(() => ({
-  width: imageConfig.width || 0,
-  height: imageConfig.height || 0
+  width: imageConfig.naturalWidth || imageConfig.width || 0,
+  height: imageConfig.naturalHeight || imageConfig.height || 0
+}))
+
+const imageScale = computed(() => ({
+  x: imageConfig.naturalWidth ? imageConfig.width / imageConfig.naturalWidth : 1,
+  y: imageConfig.naturalHeight ? imageConfig.height / imageConfig.naturalHeight : 1
 }))
 
 const toCanvasX = (value) => value + imageOffset.value.x
@@ -679,11 +679,16 @@ watch(
     img.crossOrigin = 'anonymous' // Para evitar problemas de CORS
     img.onload = () => {
       console.log('Imagen cargada:', img.width, 'x', img.height)
+   
+      // Calcular el espacio disponible considerando los sidebars
+      // Sidebar izquierdo: 380px, Sidebar derecho: 350px, padding: 80px total
+      const availableWidth = window.innerWidth - 380 - 350 - 80
+      const availableHeight = window.innerHeight - 120 // Header + padding
       
-      // Calcular el tamaño máximo para la ventana
-      const maxWidth = Math.min(window.innerWidth - 200, img.width)
-      const maxHeight = Math.min(window.innerHeight - 200, img.height)
-      
+      // Calcular el tamaño máximo respetando el espacio disponible
+      const maxWidth = Math.max(availableWidth, 400) // Mínimo 400px
+      const maxHeight = Math.max(availableHeight, 300) // Mínimo 300px
+
       // Calcular escala para ajustar la imagen manteniendo proporción
       const scaleX = maxWidth / img.width
       const scaleY = maxHeight / img.height
@@ -692,37 +697,30 @@ watch(
       const scaledWidth = img.width * scale
       const scaledHeight = img.height * scale
 
-      // Factor de expansión del canvas para permitir zoom extendido
-      const canvasExpansionFactor = 2.5
-      
-      // Hacer el canvas más grande que la imagen para permitir zoom extendido
-      let canvasWidth = scaledWidth * canvasExpansionFactor
-      let canvasHeight = scaledHeight * canvasExpansionFactor
-      
-      // Limitar el tamaño máximo del canvas para evitar problemas de rendimiento
-      const maxCanvasWidth = Math.min(window.innerWidth - 50, 2000)
-      const maxCanvasHeight = Math.min(window.innerHeight - 100, 1500)
-      
-      canvasWidth = Math.min(canvasWidth, maxCanvasWidth)
-      canvasHeight = Math.min(canvasHeight, maxCanvasHeight)
-      
-      // Centrar la imagen en el canvas expandido
-      const imageX = (canvasWidth - scaledWidth) / 2
-      const imageY = (canvasHeight - scaledHeight) / 2
 
-      stageWidth.value = canvasWidth
-      stageHeight.value = canvasHeight
+      // 1. El canvas debe tener el tamaño de la imagen escalada
+      const canvasWidth = scaledWidth
+      const canvasHeight = scaledHeight
+      
+      // 2. La imagen se posiciona en (0, 0) dentro del canvas
+      const imageX = 0
+      const imageY = 0
 
-      // Configurar la imagen centrada en el canvas expandido
+      stageWidth.value = canvasWidth
+      stageHeight.value = canvasHeight
+
+      // Configurar la imagen para que llene el canvas
       Object.assign(imageConfig, {
         image: img,
         width: scaledWidth,
         height: scaledHeight,
+        naturalWidth: img.width,
+        naturalHeight: img.height,
         x: imageX,
         y: imageY
-      })
-
-      image.value = img
+      })     
+       
+    image.value = img
       
       // Crear canvas oculto para obtener datos de imagen
       createImageData(img, scaledWidth, scaledHeight)
@@ -1434,12 +1432,14 @@ function handlePredictionMouseLeave() {
 function acceptPrediction(prediction, index) {
   console.log('Aceptando predicción:', prediction)
   
-  // Verificar que hay una imagen actual
-  if (!store.currentImage) {
+  // Verificar que hay un imageId disponible
+  const imageId = props.imageId || store.currentImage?._id || store.currentImage?.id
+  if (!imageId) {
     console.error('No hay imagen actual seleccionada')
     return
   }
   
+  console.log('ImageId para guardar anotación:', imageId)
 
   // Convertir predicción a anotación
   const annotationData = {
@@ -1450,8 +1450,10 @@ function acceptPrediction(prediction, index) {
     source: 'ai_prediction' // Marcar como originada de IA
   }
   
+  console.log('Datos de anotación a guardar:', annotationData)
+  
   // Agregar la anotación usando el store
-  store.addAnnotation(store.currentImage._id, annotationData)
+  store.addAnnotation(imageId, annotationData)
     .then(() => {
       console.log('Predicción convertida a anotación exitosamente')
       
@@ -1481,28 +1483,48 @@ function rejectPrediction(index) {
 function getCurrentCategoryForPrediction(prediction) {
   // Buscar una categoría que coincida con la clase de la predicción
   const className = predictionCategories.value[prediction.class]
+  console.log('Buscando categoría para predicción. Clase:', prediction.class, 'Nombre:', className)
+  
   if (className) {
     // Buscar en las categorías del store una que tenga el mismo nombre
     const matchingCategory = store.categories.find(cat => 
       cat.name.toLowerCase() === className.toLowerCase()
     )
     if (matchingCategory) {
+      console.log('Categoría coincidente encontrada:', matchingCategory)
       return matchingCategory.id
     }
   }
   
   // Si no se encuentra categoría coincidente, usar la categoría seleccionada actualmente
   if (store.selectedCategory) {
+    console.log('Usando categoría seleccionada:', store.selectedCategory)
     return store.selectedCategory
   }
   
   // Si no hay categoría seleccionada, usar la primera disponible
   if (store.categories.length > 0) {
+    console.log('Usando primera categoría disponible:', store.categories[0])
     return store.categories[0].id
   }
   
   // Si no hay categorías, retornar null
+  console.warn('No se encontró ninguna categoría válida')
   return null
+}
+
+function getImageMetrics() {
+  const naturalWidth = imageConfig.naturalWidth || image.value?.naturalWidth || image.value?.width || 0
+  const naturalHeight = imageConfig.naturalHeight || image.value?.naturalHeight || image.value?.height || 0
+
+  return {
+    displayWidth: imageConfig.width || 0,
+    displayHeight: imageConfig.height || 0,
+    naturalWidth,
+    naturalHeight,
+    scaleX: naturalWidth ? (imageConfig.width || 0) / naturalWidth : 1,
+    scaleY: naturalHeight ? (imageConfig.height || 0) / naturalHeight : 1
+  }
 }
 
 // Exponer métodos para uso externo
@@ -1510,7 +1532,8 @@ defineExpose({
   showPredictions,
   clearPredictions,
   acceptPrediction,
-  rejectPrediction
+  rejectPrediction,
+  getImageMetrics
 })
 </script>
 
@@ -1520,10 +1543,10 @@ defineExpose({
   flex-direction: column;
   justify-content: center;
   align-items: center;
-  padding: 1rem;
-  overflow: hidden; /* Ocultar el contenido que se desborde */
-  max-width: 100vw;
-  max-height: 100vh;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
 }
 
 .annotation-stage {
@@ -1533,8 +1556,6 @@ defineExpose({
   -webkit-user-select: none;
   -moz-user-select: none;
   -ms-user-select: none;
-  max-width: calc(100vw - 2rem);
-  max-height: calc(100vh - 4rem);
   cursor: grab;
 }
 

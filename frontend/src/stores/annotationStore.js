@@ -499,14 +499,11 @@ export const useAnnotationStore = defineStore('annotation', {
       const existingAnnotations = this.annotations.filter(ann => ann.image_id === imageId)
       
       try {
+        // apiFetch ya maneja errores y devuelve los datos parseados
         await window.apiFetch(`/api/annotations/bulk`, {
           method: 'DELETE',
           body: { image_id: imageId }
         })
-        
-        if (!response.ok) {
-          throw new Error(`Error ${response.status}: ${response.statusText}`)
-        }
         
         // Remover anotaciones del estado local
         this.annotations = this.annotations.filter(ann => ann.image_id !== imageId)

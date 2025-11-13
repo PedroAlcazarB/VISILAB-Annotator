@@ -13,6 +13,8 @@ import io
 import zipfile
 import jwt
 from functools import wraps
+import cv2
+import numpy as np
 
 app = Flask(__name__)
 CORS(app)
@@ -320,6 +322,127 @@ def extract_and_find_images(zip_file_path, extract_path):
         print(f"Error extrayendo ZIP: {str(e)}")
         return []
 
+def is_video_file(filename):
+    """Verificar si un archivo es un video basado en su extensión"""
+    video_extensions = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv', '.webm', '.m4v'}
+    file_ext = os.path.splitext(filename)[1].lower()
+    return file_ext in video_extensions
+
+def extract_video_frames(video_path, output_folder, fps=1):
+    """
+    Extraer frames de un video a una tasa específica
+    
+    Args:
+        video_path: Ruta del archivo de video
+        output_folder: Carpeta donde guardar los frames
+        fps: Frames por segundo a extraer (por defecto 1 frame/segundo)
+    
+    Returns:
+        Lista de información de frames extraídos
+    """
+    frames_info = []
+    
+    try:
+        # Crear carpeta de salida
+        os.makedirs(output_folder, exist_ok=True)
+        
+        # Abrir video
+        video = cv2.VideoCapture(video_path)
+        if not video.isOpened():
+            raise Exception("No se pudo abrir el video")
+        
+        # Obtener propiedades del video
+        video_fps = video.get(cv2.CAP_PROP_FPS)
+        total_frames = int(video.get(cv2.CAP_PROP_FRAME_COUNT))
+        duration = total_frames / video_fps if video_fps > 0 else 0
+        width = int(video.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(video.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        
+        # Calcular intervalo de frames a extraer
+        frame_interval = int(video_fps / fps) if fps > 0 else int(video_fps)
+        
+        print(f"Video FPS: {video_fps}, Extrayendo cada {frame_interval} frames")
+        
+        frame_count = 0
+        extracted_count = 0
+        
+        while True:
+            ret, frame = video.read()
+            if not ret:
+                break
+            
+            # Extraer frame según el intervalo
+            if frame_count % frame_interval == 0:
+                # Generar nombre de archivo para el frame
+                timestamp = frame_count / video_fps if video_fps > 0 else 0
+                frame_filename = f"frame_{extracted_count:06d}_t{timestamp:.2f}s.jpg"
+                frame_path = os.path.join(output_folder, frame_filename)
+                
+                # Guardar frame como imagen
+                cv2.imwrite(frame_path, frame, [cv2.IMWRITE_JPEG_QUALITY, 95])
+                
+                # Convertir frame a base64 para MongoDB
+                _, buffer = cv2.imencode('.jpg', frame)
+                frame_base64 = base64.b64encode(buffer).decode('utf-8')
+                
+                frames_info.append({
+                    'frame_number': extracted_count,
+                    'timestamp': timestamp,
+                    'filename': frame_filename,
+                    'file_path': frame_path,
+                    'width': width,
+                    'height': height,
+                    'data': frame_base64
+                })
+                
+                extracted_count += 1
+            
+            frame_count += 1
+        
+        video.release()
+        
+        print(f"Extraídos {extracted_count} frames de {total_frames} totales")
+        
+        return frames_info
+        
+    except Exception as e:
+        print(f"Error extrayendo frames del video: {str(e)}")
+        return []
+
+def find_videos_in_directory(directory_path, max_depth=3):
+    """
+    Buscar recursivamente todos los videos en un directorio
+    
+    Args:
+        directory_path: Ruta del directorio a buscar
+        max_depth: Profundidad máxima de búsqueda
+    
+    Returns:
+        Lista de información de videos encontrados
+    """
+    video_extensions = {'.mp4', '.avi', '.mov', '.mkv', '.flv', '.wmv', '.webm', '.m4v'}
+    found_videos = []
+    
+    for root, dirs, files in os.walk(directory_path):
+        depth = root[len(directory_path):].count(os.sep)
+        if depth >= max_depth:
+            dirs.clear()
+            continue
+            
+        for filename in files:
+            file_ext = os.path.splitext(filename)[1].lower()
+            if file_ext in video_extensions:
+                file_path = os.path.join(root, filename)
+                relative_path = os.path.relpath(file_path, directory_path)
+                
+                found_videos.append({
+                    'file_path': file_path,
+                    'filename': filename,
+                    'relative_path': relative_path
+                })
+    
+    return found_videos
+
 # Carpeta donde se guardarán las imágenes (backup)
 IMAGE_FOLDER = os.path.join(os.getcwd(), 'images')
 os.makedirs(IMAGE_FOLDER, exist_ok=True)
@@ -329,17 +452,22 @@ os.makedirs(IMAGE_FOLDER, exist_ok=True)
 @app.route('/api/images', methods=['POST'])
 @token_required
 def upload_image(current_user_id):
-    """Subir una nueva imagen y guardarla en MongoDB"""
+    """Subir una nueva imagen o video y procesarlo según corresponda"""
     if 'image' not in request.files:
-        return jsonify({'error': 'No se encontró ninguna imagen'}), 400
+        return jsonify({'error': 'No se encontró ningún archivo'}), 400
 
-    image = request.files['image']
-    if image.filename == '':
+    file = request.files['image']
+    if file.filename == '':
         return jsonify({'error': 'Nombre de archivo vacío'}), 400
 
     try:
         db = get_db()
         dataset_id = request.form.get('dataset_id')
+        
+        # Verificar si es un video
+        if is_video_file(file.filename):
+            # Redirigir al procesamiento de video
+            return process_video_upload(file, current_user_id, dataset_id, db)
         
         # Si hay dataset_id, verificar que pertenece al usuario y obtener el nombre del dataset
         dataset_folder_path = IMAGE_FOLDER  # Por defecto en la carpeta principal
@@ -352,10 +480,10 @@ def upload_image(current_user_id):
                 return jsonify({'error': 'Dataset no encontrado o no autorizado'}), 403
         
         # Leer la imagen como bytes
-        image_data = image.read()
+        image_data = file.read()
         
         # Guardar también una copia física (backup) en la carpeta correcta
-        save_path = os.path.join(dataset_folder_path, image.filename)
+        save_path = os.path.join(dataset_folder_path, file.filename)
         with open(save_path, 'wb') as f:
             f.write(image_data)
         
@@ -367,22 +495,23 @@ def upload_image(current_user_id):
         image_base64 = base64.b64encode(image_data).decode('utf-8')
         
         # Guardar ruta relativa para facilitar la organización
-        relative_path = os.path.relpath(save_path, IMAGE_FOLDER) if dataset_id else image.filename
+        relative_path = os.path.relpath(save_path, IMAGE_FOLDER) if dataset_id else file.filename
         
         # Crear documento de imagen
         image_doc = {
-            'filename': image.filename,
-            'original_name': image.filename,
+            'filename': file.filename,
+            'original_name': file.filename,
             'file_path': relative_path,  # Ruta relativa desde IMAGE_FOLDER
             'data': image_base64,
-            'content_type': image.content_type,
+            'content_type': file.content_type,
             'size': len(image_data),
             'width': width,
             'height': height,
             'upload_date': datetime.utcnow(),
             'dataset_id': dataset_id,
             'project_id': request.form.get('project_id', 'default'),  # Mantener para compatibilidad
-            'user_id': current_user_id  # Asociar imagen al usuario
+            'user_id': current_user_id,  # Asociar imagen al usuario
+            'type': 'image'
         }
         
         # Insertar en MongoDB
@@ -395,16 +524,126 @@ def upload_image(current_user_id):
         })
         
     except Exception as e:
-        return jsonify({'error': f'Error al subir imagen: {str(e)}'}), 500
+        return jsonify({'error': f'Error al subir archivo: {str(e)}'}), 500
+
+def process_video_upload(video_file, current_user_id, dataset_id, db):
+    """Función auxiliar para procesar la subida de videos"""
+    try:
+        # Si hay dataset_id, verificar que pertenece al usuario
+        dataset_folder_path = IMAGE_FOLDER
+        if dataset_id:
+            dataset = db.datasets.find_one({'_id': ObjectId(dataset_id), 'user_id': current_user_id})
+            if dataset:
+                dataset_folder_path = os.path.join(IMAGE_FOLDER, dataset['name'])
+                os.makedirs(dataset_folder_path, exist_ok=True)
+            else:
+                return jsonify({'error': 'Dataset no encontrado o no autorizado'}), 403
+        
+        # Guardar video temporal
+        video_filename = video_file.filename
+        video_path = os.path.join(dataset_folder_path, video_filename)
+        video_file.save(video_path)
+        
+        # Crear carpeta para frames del video
+        video_name_no_ext = os.path.splitext(video_filename)[0]
+        frames_folder = os.path.join(dataset_folder_path, f"{video_name_no_ext}_frames")
+        os.makedirs(frames_folder, exist_ok=True)
+        
+        # Extraer frames (1 fps por defecto)
+        fps = 1
+        frames_info = extract_video_frames(video_path, frames_folder, fps=fps)
+        
+        if not frames_info:
+            return jsonify({'error': 'No se pudieron extraer frames del video'}), 500
+        
+        # Obtener información del video
+        video_capture = cv2.VideoCapture(video_path)
+        video_fps = video_capture.get(cv2.CAP_PROP_FPS)
+        total_frames = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
+        duration = total_frames / video_fps if video_fps > 0 else 0
+        width = int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        video_capture.release()
+        
+        # Obtener tamaño del archivo
+        video_size = os.path.getsize(video_path)
+        
+        # Crear documento de video en MongoDB
+        video_doc = {
+            'filename': video_filename,
+            'original_name': video_filename,
+            'file_path': os.path.relpath(video_path, IMAGE_FOLDER),
+            'frames_folder': os.path.relpath(frames_folder, IMAGE_FOLDER),
+            'size': video_size,
+            'width': width,
+            'height': height,
+            'fps': video_fps,
+            'duration': duration,
+            'total_frames': total_frames,
+            'extracted_frames': len(frames_info),
+            'frames_count': len(frames_info),  # Agregar frames_count para compatibilidad con frontend
+            'upload_date': datetime.utcnow(),
+            'dataset_id': dataset_id,
+            'user_id': current_user_id,
+            'type': 'video'
+        }
+        
+        result = db.videos.insert_one(video_doc)
+        video_id = str(result.inserted_id)
+        video_doc['_id'] = video_id
+        
+        # Guardar frames en la colección de imágenes con referencia al video
+        frame_ids = []
+        for frame_info in frames_info:
+            frame_doc = {
+                'filename': frame_info['filename'],
+                'original_name': frame_info['filename'],
+                'file_path': os.path.relpath(frame_info['file_path'], IMAGE_FOLDER),
+                'data': frame_info['data'],
+                'content_type': 'image/jpeg',
+                'size': len(base64.b64decode(frame_info['data'])),
+                'width': frame_info['width'],
+                'height': frame_info['height'],
+                'upload_date': datetime.utcnow(),
+                'dataset_id': dataset_id,
+                'user_id': current_user_id,
+                'video_id': video_id,
+                'frame_number': frame_info['frame_number'],
+                'timestamp': frame_info['timestamp'],
+                'type': 'video_frame'
+            }
+            
+            frame_result = db.images.insert_one(frame_doc)
+            frame_ids.append(str(frame_result.inserted_id))
+
+        # Guardar frame de vista previa con el primer frame extraído
+        if frame_ids:
+            video_doc['thumbnail_frame_id'] = frame_ids[0]
+            db.videos.update_one(
+                {'_id': ObjectId(video_id)},
+                {'$set': {'thumbnail_frame_id': frame_ids[0]}}
+            )
+
+        return jsonify({
+            'message': 'Video subido y procesado correctamente',
+            'video': serialize_doc(video_doc),
+            'frames_count': len(frame_ids),
+            'frame_ids': frame_ids
+        })
+        
+    except Exception as e:
+        print(f"Error al procesar video: {str(e)}")
+        return jsonify({'error': f'Error al procesar video: {str(e)}'}), 500
 
 @app.route('/api/images', methods=['GET'])
 @token_required
 def get_images(current_user_id):
-    """Obtener lista de todas las imágenes del usuario"""
+    """Obtener lista de todas las imágenes y videos del usuario"""
     try:
         db = get_db()
         dataset_id = request.args.get('dataset_id')
         project_id = request.args.get('project_id', 'default')
+        include_videos = request.args.get('include_videos', 'true').lower() == 'true'
         
         # Construir filtro - siempre filtrar por usuario
         query_filter = {'user_id': current_user_id}
@@ -413,8 +652,15 @@ def get_images(current_user_id):
         else:
             query_filter['project_id'] = project_id
 
+        # Obtener imágenes (excluir frames de video si no se solicitan)
+        image_filter = query_filter.copy()
+        image_filter['$or'] = [
+            {'type': 'image'},
+            {'type': {'$exists': False}}  # Compatibilidad con imágenes antiguas
+        ]
+        
         images = list(db.images.find(
-            query_filter,
+            image_filter,
             {'data': 0}  # Excluir datos binarios para listar
         ))
         
@@ -424,9 +670,27 @@ def get_images(current_user_id):
             annotation_count = db.annotations.count_documents({'image_id': image_id, 'user_id': current_user_id})
             image['annotation_count'] = annotation_count
         
-        return jsonify({
+        result = {
             'images': [serialize_doc(img) for img in images]
-        })
+        }
+        
+        # Incluir videos si se solicita
+        if include_videos:
+            video_filter = query_filter.copy()
+            videos = list(db.videos.find(video_filter))
+            
+            for video in videos:
+                video_id = str(video['_id'])
+                # Contar anotaciones en todos los frames del video
+                annotation_count = db.annotations.count_documents({
+                    'video_id': video_id,
+                    'user_id': current_user_id
+                })
+                video['annotation_count'] = annotation_count
+            
+            result['videos'] = [serialize_doc(video) for video in videos]
+        
+        return jsonify(result)
         
     except Exception as e:
         return jsonify({'error': f'Error al obtener imágenes: {str(e)}'}), 500
@@ -695,6 +959,273 @@ def check_annotation_duplicate_advanced(db, image_id, category_id, category_name
         print(f"Error al verificar duplicados avanzados: {e}")
         return {'is_duplicate': False, 'existing_annotation': None, 'iou': 0.0}
 
+# ==================== ENDPOINTS PARA VIDEOS ====================
+
+@app.route('/api/videos', methods=['POST'])
+@token_required
+def upload_video(current_user_id):
+    """Subir un nuevo video y extraer frames para anotación"""
+    if 'video' not in request.files:
+        return jsonify({'error': 'No se encontró ningún video'}), 400
+
+    video_file = request.files['video']
+    if video_file.filename == '':
+        return jsonify({'error': 'Nombre de archivo vacío'}), 400
+
+    try:
+        db = get_db()
+        dataset_id = request.form.get('dataset_id')
+        
+        # Verificar que es un video
+        if not is_video_file(video_file.filename):
+            return jsonify({'error': 'El archivo no es un video válido'}), 400
+        
+        # Si hay dataset_id, verificar que pertenece al usuario
+        dataset_folder_path = IMAGE_FOLDER
+        if dataset_id:
+            dataset = db.datasets.find_one({'_id': ObjectId(dataset_id), 'user_id': current_user_id})
+            if dataset:
+                dataset_folder_path = os.path.join(IMAGE_FOLDER, dataset['name'])
+                os.makedirs(dataset_folder_path, exist_ok=True)
+            else:
+                return jsonify({'error': 'Dataset no encontrado o no autorizado'}), 403
+        
+        # Guardar video original
+        video_filename = video_file.filename
+        video_path = os.path.join(dataset_folder_path, video_filename)
+        video_file.save(video_path)
+        
+        # Crear carpeta para frames del video
+        video_name_no_ext = os.path.splitext(video_filename)[0]
+        frames_folder = os.path.join(dataset_folder_path, f"{video_name_no_ext}_frames")
+        os.makedirs(frames_folder, exist_ok=True)
+        
+        # Extraer frames (1 fps por defecto)
+        fps = float(request.form.get('fps', 1))
+        frames_info = extract_video_frames(video_path, frames_folder, fps=fps)
+        
+        if not frames_info:
+            return jsonify({'error': 'No se pudieron extraer frames del video'}), 500
+        
+        # Obtener información del video
+        video_capture = cv2.VideoCapture(video_path)
+        video_fps = video_capture.get(cv2.CAP_PROP_FPS)
+        total_frames = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
+        duration = total_frames / video_fps if video_fps > 0 else 0
+        width = int(video_capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(video_capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        video_capture.release()
+        
+        # Obtener tamaño del archivo
+        video_size = os.path.getsize(video_path)
+        
+        # Crear documento de video en MongoDB
+        video_doc = {
+            'filename': video_filename,
+            'original_name': video_filename,
+            'file_path': os.path.relpath(video_path, IMAGE_FOLDER),
+            'frames_folder': os.path.relpath(frames_folder, IMAGE_FOLDER),
+            'size': video_size,
+            'width': width,
+            'height': height,
+            'fps': video_fps,
+            'duration': duration,
+            'total_frames': total_frames,
+            'extracted_frames': len(frames_info),
+            'frames_count': len(frames_info),  # Agregar frames_count para compatibilidad con frontend
+            'upload_date': datetime.utcnow(),
+            'dataset_id': dataset_id,
+            'user_id': current_user_id,
+            'type': 'video'
+        }
+        
+        result = db.videos.insert_one(video_doc)
+        video_id = str(result.inserted_id)
+        video_doc['_id'] = video_id
+        
+        # Guardar frames en la colección de imágenes con referencia al video
+        frame_ids = []
+        for frame_info in frames_info:
+            frame_doc = {
+                'filename': frame_info['filename'],
+                'original_name': frame_info['filename'],
+                'file_path': os.path.relpath(frame_info['file_path'], IMAGE_FOLDER),
+                'data': frame_info['data'],
+                'content_type': 'image/jpeg',
+                'size': len(base64.b64decode(frame_info['data'])),
+                'width': frame_info['width'],
+                'height': frame_info['height'],
+                'upload_date': datetime.utcnow(),
+                'dataset_id': dataset_id,
+                'user_id': current_user_id,
+                'video_id': video_id,  # Referencia al video
+                'frame_number': frame_info['frame_number'],
+                'timestamp': frame_info['timestamp'],
+                'type': 'video_frame'
+            }
+            
+            frame_result = db.images.insert_one(frame_doc)
+            frame_ids.append(str(frame_result.inserted_id))
+        
+        return jsonify({
+            'message': 'Video subido y procesado correctamente',
+            'video': serialize_doc(video_doc),
+            'frames_count': len(frame_ids),
+            'frame_ids': frame_ids
+        })
+        
+    except Exception as e:
+        print(f"Error al subir video: {str(e)}")
+        return jsonify({'error': f'Error al subir video: {str(e)}'}), 500
+
+@app.route('/api/videos', methods=['GET'])
+@token_required
+def get_videos(current_user_id):
+    """Obtener lista de todos los videos del usuario"""
+    try:
+        db = get_db()
+        dataset_id = request.args.get('dataset_id')
+        
+        query_filter = {'user_id': current_user_id}
+        if dataset_id:
+            query_filter['dataset_id'] = dataset_id
+        
+        videos = list(db.videos.find(query_filter))
+        
+        # Agregar contador de anotaciones para cada video
+        for video in videos:
+            video_id = str(video['_id'])
+            # Contar anotaciones en todos los frames del video
+            annotation_count = db.annotations.count_documents({
+                'video_id': video_id,
+                'user_id': current_user_id
+            })
+            video['annotation_count'] = annotation_count
+        
+        return jsonify({
+            'videos': [serialize_doc(video) for video in videos]
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener videos: {str(e)}'}), 500
+
+@app.route('/api/videos/<video_id>', methods=['GET'])
+@token_required
+def get_video(current_user_id, video_id):
+    """Obtener información de un video específico"""
+    try:
+        db = get_db()
+        
+        if not ObjectId.is_valid(video_id):
+            return jsonify({'error': 'ID de video inválido'}), 400
+        
+        video_doc = db.videos.find_one({'_id': ObjectId(video_id), 'user_id': current_user_id})
+        
+        if not video_doc:
+            return jsonify({'error': 'Video no encontrado'}), 404
+        
+        return jsonify({
+            'video': serialize_doc(video_doc)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener video: {str(e)}'}), 500
+
+@app.route('/api/videos/<video_id>/frames', methods=['GET'])
+@token_required
+def get_video_frames(current_user_id, video_id):
+    """Obtener todos los frames de un video"""
+    try:
+        db = get_db()
+        
+        if not ObjectId.is_valid(video_id):
+            return jsonify({'error': 'ID de video inválido'}), 400
+        
+        # Verificar que el video existe y pertenece al usuario
+        video_doc = db.videos.find_one({'_id': ObjectId(video_id), 'user_id': current_user_id})
+        if not video_doc:
+            return jsonify({'error': 'Video no encontrado'}), 404
+        
+        # Obtener frames del video (sin los datos base64 para listar)
+        limit = request.args.get('limit', type=int)
+        frames_cursor = db.images.find(
+            {'video_id': video_id, 'user_id': current_user_id},
+            {'data': 0}
+        ).sort('frame_number', 1)
+
+        if limit:
+            frames_cursor = frames_cursor.limit(max(limit, 0))
+
+        frames = list(frames_cursor)
+        
+        # Agregar contador de anotaciones para cada frame
+        for frame in frames:
+            frame_id = str(frame['_id'])
+            annotation_count = db.annotations.count_documents({
+                'image_id': frame_id,
+                'user_id': current_user_id
+            })
+            frame['annotation_count'] = annotation_count
+        
+        return jsonify({
+            'frames': [serialize_doc(frame) for frame in frames]
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al obtener frames: {str(e)}'}), 500
+
+@app.route('/api/videos/<video_id>', methods=['DELETE'])
+@token_required
+def delete_video(current_user_id, video_id):
+    """Eliminar un video, sus frames y anotaciones"""
+    try:
+        db = get_db()
+        
+        if not ObjectId.is_valid(video_id):
+            return jsonify({'error': 'ID de video inválido'}), 400
+        
+        # Obtener información del video
+        video_doc = db.videos.find_one({'_id': ObjectId(video_id), 'user_id': current_user_id})
+        if not video_doc:
+            return jsonify({'error': 'Video no encontrado o no autorizado'}), 403
+        
+        # Eliminar archivo de video
+        if 'file_path' in video_doc:
+            video_path = os.path.join(IMAGE_FOLDER, video_doc['file_path'])
+            try:
+                if os.path.exists(video_path):
+                    os.remove(video_path)
+            except Exception as e:
+                print(f"Error al eliminar archivo de video: {str(e)}")
+        
+        # Eliminar carpeta de frames
+        if 'frames_folder' in video_doc:
+            frames_folder = os.path.join(IMAGE_FOLDER, video_doc['frames_folder'])
+            try:
+                if os.path.exists(frames_folder):
+                    import shutil
+                    shutil.rmtree(frames_folder)
+            except Exception as e:
+                print(f"Error al eliminar carpeta de frames: {str(e)}")
+        
+        # Eliminar frames de la colección de imágenes
+        frames_result = db.images.delete_many({'video_id': video_id, 'user_id': current_user_id})
+        
+        # Eliminar anotaciones de los frames
+        annotations_result = db.annotations.delete_many({'video_id': video_id, 'user_id': current_user_id})
+        
+        # Eliminar documento del video
+        db.videos.delete_one({'_id': ObjectId(video_id)})
+        
+        return jsonify({
+            'message': 'Video eliminado correctamente',
+            'deleted_frames': frames_result.deleted_count,
+            'deleted_annotations': annotations_result.deleted_count
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Error al eliminar video: {str(e)}'}), 500
+
 # ==================== ENDPOINTS PARA ANOTACIONES ====================
 
 @app.route('/api/annotations', methods=['POST'])
@@ -755,7 +1286,8 @@ def create_annotation(current_user_id):
             'model_name': data.get('model_name'),  # Solo para predicciones de IA
             'created_date': datetime.utcnow(),
             'modified_date': datetime.utcnow(),
-            'user_id': current_user_id  # Asociar anotación al usuario
+            'user_id': current_user_id,  # Asociar anotación al usuario
+            'video_id': image_doc.get('video_id')  # Asociar con video si el frame pertenece a uno
         }
         
         # Verificar duplicados antes de crear la anotación
@@ -2652,17 +3184,52 @@ def export_coco_format_with_split(dataset, train_images, val_images, test_images
         raise e
 
 def create_coco_structure(dataset, images, annotations, categories):
-    """Crea la estructura COCO JSON"""
+    """Crea la estructura COCO JSON con soporte para videos"""
     coco_data = {
         'info': {
             'description': dataset.get('name', 'Dataset'),
             'date_created': datetime.utcnow().isoformat(),
-            'version': '1.0'
+            'version': '1.0',
+            'supports_video': True
         },
+        'videos': [],
         'images': [],
         'annotations': [],
         'categories': []
     }
+    
+    # Obtener videos del dataset
+    db = get_db()
+    dataset_id = str(dataset.get('_id'))
+    user_id = dataset.get('user_id')
+    
+    # Obtener todos los video_ids únicos de las imágenes
+    video_ids = set()
+    for img in images:
+        if 'video_id' in img and img['video_id']:
+            video_ids.add(img['video_id'])
+    
+    # Mapear videos
+    video_map = {}
+    if video_ids:
+        videos = list(db.videos.find({
+            '_id': {'$in': [ObjectId(vid) if ObjectId.is_valid(vid) else vid for vid in video_ids]},
+            'user_id': user_id
+        }))
+        
+        for idx, video in enumerate(videos, start=1):
+            video_id = idx
+            video_map[str(video['_id'])] = video_id
+            coco_data['videos'].append({
+                'id': video_id,
+                'file_name': video['filename'],
+                'width': video.get('width', 0),
+                'height': video.get('height', 0),
+                'fps': video.get('fps', 0),
+                'duration': video.get('duration', 0),
+                'total_frames': video.get('total_frames', 0),
+                'extracted_frames': video.get('extracted_frames', 0)
+            })
     
     # Mapear categorías
     category_map = {}
@@ -2681,13 +3248,24 @@ def create_coco_structure(dataset, images, annotations, categories):
     for idx, img in enumerate(images, start=1):
         img_id = idx
         image_map[str(img['_id'])] = img_id
-        coco_data['images'].append({
+        
+        image_entry = {
             'id': img_id,
             'file_name': img['filename'],
             'width': img.get('width', 0),
             'height': img.get('height', 0),
             'date_captured': img.get('created_at', datetime.utcnow()).isoformat()
-        })
+        }
+        
+        # Si la imagen es un frame de video, añadir información adicional
+        if 'video_id' in img and img['video_id']:
+            video_db_id = img['video_id']
+            if video_db_id in video_map:
+                image_entry['video_id'] = video_map[video_db_id]
+                image_entry['frame_number'] = img.get('frame_number', 0)
+                image_entry['timestamp'] = img.get('timestamp', 0)
+        
+        coco_data['images'].append(image_entry)
     
     # Mapear anotaciones
     for idx, ann in enumerate(annotations, start=1):
@@ -3066,17 +3644,19 @@ def get_export_statistics(current_user_id, dataset_id):
         return jsonify({'error': str(e)}), 500
 
 def export_coco_format(dataset, images, annotations, categories, include_images):
-    """Exportar en formato COCO JSON"""
+    """Exportar en formato COCO JSON con soporte para videos"""
     from flask import Response
     import tempfile
     
-    # Crear estructura COCO
+    # Crear estructura COCO extendida con videos
     coco_data = {
         'info': {
             'description': dataset.get('name', 'Dataset'),
             'date_created': datetime.utcnow().isoformat(),
-            'version': '1.0'
+            'version': '1.0',
+            'supports_video': True
         },
+        'videos': [],
         'images': [],
         'annotations': [],
         'categories': []
@@ -3094,18 +3674,51 @@ def export_coco_format(dataset, images, annotations, categories, include_images)
             'color': cat.get('color', '#FF0000')
         })
     
-    # Mapear imágenes
+    # Obtener videos del dataset
+    db = get_db()
+    dataset_id = str(dataset.get('_id'))
+    user_id = dataset.get('user_id')
+    videos = list(db.videos.find({'dataset_id': dataset_id, 'user_id': user_id}))
+    
+    # Mapear videos
+    video_map = {}
+    for idx, video in enumerate(videos, start=1):
+        video_id = idx
+        video_map[str(video['_id'])] = video_id
+        coco_data['videos'].append({
+            'id': video_id,
+            'file_name': video['filename'],
+            'width': video.get('width', 0),
+            'height': video.get('height', 0),
+            'fps': video.get('fps', 0),
+            'duration': video.get('duration', 0),
+            'total_frames': video.get('total_frames', 0),
+            'extracted_frames': video.get('extracted_frames', 0)
+        })
+    
+    # Mapear imágenes (incluyendo frames de video)
     image_map = {}
     for idx, img in enumerate(images, start=1):
         img_id = idx
         image_map[str(img['_id'])] = img_id
-        coco_data['images'].append({
+        
+        image_entry = {
             'id': img_id,
             'file_name': img['filename'],
             'width': img.get('width', 0),
             'height': img.get('height', 0),
             'date_captured': img.get('created_at', datetime.utcnow()).isoformat()
-        })
+        }
+        
+        # Si la imagen es un frame de video, añadir información adicional
+        if 'video_id' in img and img['video_id']:
+            video_db_id = img['video_id']
+            if video_db_id in video_map:
+                image_entry['video_id'] = video_map[video_db_id]
+                image_entry['frame_number'] = img.get('frame_number', 0)
+                image_entry['timestamp'] = img.get('timestamp', 0)
+        
+        coco_data['images'].append(image_entry)
     
     # Mapear anotaciones
     for idx, ann in enumerate(annotations, start=1):

@@ -3,15 +3,6 @@
     <h3 class="toolbar-title">Herramientas de Anotación</h3>
     
     <div class="tools-grid">
-      <!-- Edit Tool -->
-      <button
-        :class="['tool-btn', { active: activeTool === 'edit' }]"
-        @click="setActiveTool('edit')"
-        title="Editar Anotaciones"
-      >
-        <i class="fas fa-edit"></i>
-        <span>Editar</span>
-      </button>
 
       <!-- Pan Tool -->
       <button
@@ -21,6 +12,16 @@
       >
         <i class="fas fa-hand-paper"></i>
         <span>Mover</span>
+      </button>
+      
+            <!-- Edit Tool -->
+      <button
+        :class="['tool-btn', { active: activeTool === 'edit' }]"
+        @click="setActiveTool('edit')"
+        title="Editar Anotaciones"
+      >
+        <i class="fas fa-edit"></i>
+        <span>Editar</span>
       </button>
 
       <!-- BBox Tool -->
@@ -275,7 +276,7 @@ const emit = defineEmits([
 
 // Inicializar herramienta por defecto
 onMounted(() => {
-  setActiveTool('edit')
+  setActiveTool('pan')
 })
 </script>
 

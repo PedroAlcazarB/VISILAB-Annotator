@@ -1,10 +1,11 @@
 <template>
   <div class="image-gallery">
     <div class="gallery-header">
-      <h3>Galería de Imágenes</h3>
+      <h3>Galería de Imágenes y Videos</h3>
       <div class="gallery-info">
-        <span v-if="images.length > 0">{{ images.length }} imagen(es) cargada(s)</span>
-        <span v-else>No hay imágenes cargadas</span>
+        <span v-if="images.length > 0">{{ images.length }} imagen(es)</span>
+        <span v-if="videos.length > 0"> • {{ videos.length }} video(s)</span>
+        <span v-if="images.length === 0 && videos.length === 0">No hay contenido cargado</span>
       </div>
     </div>
 
@@ -21,7 +22,7 @@
         v-for="(image, index) in images" 
         :key="image._id"
         class="thumbnail-item"
-        :class="{ 'active': currentImageIndex === index }"
+        :class="{ 'active': currentImageIndex === index && !currentVideo }"
         @click="selectImage(index)"
       >
         <img 
@@ -40,6 +41,36 @@
         >
           ×
         </button>
+      </div>
+    </div>
+
+    <!-- Grid de videos -->
+    <div v-if="videos.length > 0" class="videos-section">
+      <h4 class="section-title">Videos</h4>
+      <div class="thumbnails-grid">
+        <div 
+          v-for="video in videos" 
+          :key="video._id"
+          class="thumbnail-item video-item"
+          :class="{ 'active': currentVideo && currentVideo._id === video._id }"
+          @click="selectVideo(video)"
+        >
+          <div class="video-thumbnail">
+            <div class="video-icon">🎬</div>
+            <div class="video-duration">{{ formatDuration(video.duration) }}</div>
+          </div>
+          <div class="thumbnail-info">
+            <span class="thumbnail-name">{{ truncateName(video.filename) }}</span>
+            <span class="annotation-count">{{ video.extracted_frames }} frames • {{ video.annotation_count || 0 }} anotaciones</span>
+          </div>
+          <button 
+            @click.stop="removeVideo(video._id)" 
+            class="remove-btn"
+            title="Eliminar video"
+          >
+            ×
+          </button>
+        </div>
       </div>
     </div>
 
@@ -84,22 +115,23 @@
     <div v-if="showAnnotationView" class="annotation-overlay">
       <div class="annotation-header">
         <div class="annotation-title">
-          <h3>Anotando: {{ currentImage?.name }}</h3>
-          <span class="image-counter">Imagen {{ currentImageIndex + 1 }} de {{ images.length }}</span>
+          <h3>Anotando: {{ currentVideo ? currentVideo.filename : currentImage?.filename }}</h3>
+          <span v-if="!currentVideo" class="image-counter">Imagen {{ currentImageIndex + 1 }} de {{ images.length }}</span>
+          <span v-else class="image-counter">Frame {{ currentFrameIndex + 1 }} de {{ videoFrames.length }}</span>
         </div>
         <div class="annotation-controls">
-          <!-- Navegación entre imágenes -->
+          <!-- Navegación entre imágenes o frames -->
           <div class="image-navigation">
             <button 
-              @click="previousImage" 
-              :disabled="currentImageIndex === 0"
+              @click="previousItem" 
+              :disabled="(currentVideo && currentFrameIndex === 0) || (!currentVideo && currentImageIndex === 0)"
               class="nav-btn"
             >
               ← Anterior
             </button>
             <button 
-              @click="nextImage" 
-              :disabled="currentImageIndex === images.length - 1"
+              @click="nextItem" 
+              :disabled="(currentVideo && currentFrameIndex === videoFrames.length - 1) || (!currentVideo && currentImageIndex === images.length - 1)"
               class="nav-btn"
             >
               Siguiente →
@@ -133,11 +165,34 @@
         <!-- Canvas principal -->
         <div class="annotation-canvas-container">
           <AnnotationCanvas 
-            :imageUrl="currentImage ? `http://localhost:5000/api/images/${currentImage._id}/data` : null" 
-            :imageId="currentImage?._id"
+            :imageUrl="currentFrame ? `http://localhost:5000/api/images/${currentFrame._id}/data` : (currentImage ? `http://localhost:5000/api/images/${currentImage._id}/data` : null)" 
+            :imageId="currentFrame?._id || currentImage?._id"
             :activeTool="activeTool"
             :toolSettings="toolSettings"
           />
+        </div>
+      </div>
+      
+      <!-- Navegador de frames para videos -->
+      <div v-if="currentVideo && videoFrames.length > 0" class="frames-navigator">
+        <div class="frames-scroll">
+          <div 
+            v-for="(frame, index) in videoFrames" 
+            :key="frame._id"
+            class="frame-thumbnail"
+            :class="{ 'active': currentFrameIndex === index }"
+            @click="selectFrame(index)"
+          >
+            <img 
+              :src="`http://localhost:5000/api/images/${frame._id}/data`" 
+              :alt="`Frame ${frame.frame_number}`"
+            >
+            <div class="frame-info">
+              <span class="frame-number">{{ frame.frame_number }}</span>
+              <span class="frame-time">{{ formatTimestamp(frame.timestamp) }}</span>
+              <span v-if="frame.annotation_count > 0" class="frame-annotations">{{ frame.annotation_count }}</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -160,13 +215,26 @@ const showAnnotationView = ref(false)
 const imagesPerPage = 6
 const currentPage = ref(1)
 
+// Estado de videos
+const videos = ref([])
+const currentVideo = ref(null)
+const videoFrames = ref([])
+const currentFrameIndex = ref(0)
+
 // Estado de herramientas de anotación
 const activeTool = ref('select')
 const toolSettings = ref({})
 
 // Computed properties usando el store
 const images = computed(() => store.images)
-const currentImage = computed(() => store.images[currentImageIndex.value] || null)
+const currentImage = computed(() => {
+  if (currentVideo.value) return null
+  return store.images[currentImageIndex.value] || null
+})
+const currentFrame = computed(() => {
+  if (!currentVideo.value || videoFrames.value.length === 0) return null
+  return videoFrames.value[currentFrameIndex.value] || null
+})
 
 const totalPages = computed(() => Math.ceil(store.images.length / imagesPerPage))
 
@@ -187,6 +255,7 @@ const visiblePages = computed(() => {
 // Inicializar datos
 onMounted(async () => {
   await store.initialize()
+  await loadVideos()
 })
 
 // Funciones de manejo de archivos
@@ -196,6 +265,103 @@ async function onFilesUploaded(uploadedImages) {
   if (uploadedImages.length > 0 && store.images.length === uploadedImages.length) {
     // Si estas son las primeras imágenes, seleccionar la primera
     currentImageIndex.value = 0
+  }
+  // Recargar videos por si se subió alguno
+  await loadVideos()
+  // Recargar imágenes por si se procesó un video (se crean frames)
+  await store.loadImages()
+}
+
+// Funciones para videos
+async function loadVideos() {
+  try {
+    const token = localStorage.getItem('token')
+    const dataset_id = store.currentDataset?._id
+    
+    const url = dataset_id 
+      ? `http://localhost:5000/api/videos?dataset_id=${dataset_id}`
+      : 'http://localhost:5000/api/videos'
+    
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      videos.value = data.videos || []
+    }
+  } catch (error) {
+    console.error('Error al cargar videos:', error)
+  }
+}
+
+async function selectVideo(video) {
+  currentVideo.value = video
+  currentImageIndex.value = -1  // Desactivar selección de imagen
+  
+  // Cargar frames del video
+  await loadVideoFrames(video._id)
+  
+  // Seleccionar el primer frame y abrir la vista de anotación
+  if (videoFrames.value.length > 0) {
+    currentFrameIndex.value = 0
+    await store.setCurrentImage(videoFrames.value[0])
+    showAnnotationView.value = true
+  }
+}
+
+async function loadVideoFrames(videoId) {
+  try {
+    const token = localStorage.getItem('token')
+    const response = await fetch(`http://localhost:5000/api/videos/${videoId}/frames`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    })
+    
+    if (response.ok) {
+      const data = await response.json()
+      videoFrames.value = data.frames || []
+    }
+  } catch (error) {
+    console.error('Error al cargar frames del video:', error)
+  }
+}
+
+async function selectFrame(index) {
+  currentFrameIndex.value = index
+  if (videoFrames.value[index]) {
+    await store.setCurrentImage(videoFrames.value[index])
+  }
+}
+
+async function removeVideo(videoId) {
+  if (confirm('¿Estás seguro de que quieres eliminar este video y todos sus frames?')) {
+    try {
+      const token = localStorage.getItem('token')
+      const response = await fetch(`http://localhost:5000/api/videos/${videoId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+      
+      if (response.ok) {
+        await loadVideos()
+        if (currentVideo.value && currentVideo.value._id === videoId) {
+          currentVideo.value = null
+          videoFrames.value = []
+          closeAnnotationView()
+        }
+      } else {
+        alert('Error al eliminar el video')
+      }
+    } catch (error) {
+      console.error('Error al eliminar video:', error)
+      alert('Error al eliminar el video')
+    }
   }
 }
 
@@ -254,6 +420,26 @@ function nextImage() {
   }
 }
 
+function previousItem() {
+  if (currentVideo.value) {
+    if (currentFrameIndex.value > 0) {
+      selectFrame(currentFrameIndex.value - 1)
+    }
+  } else {
+    previousImage()
+  }
+}
+
+function nextItem() {
+  if (currentVideo.value) {
+    if (currentFrameIndex.value < videoFrames.value.length - 1) {
+      selectFrame(currentFrameIndex.value + 1)
+    }
+  } else {
+    nextImage()
+  }
+}
+
 // Funciones de paginación
 function goToPage(page) {
   if (page >= 1 && page <= totalPages.value) {
@@ -295,6 +481,12 @@ function onUndoAction() {
 
 function closeAnnotationView() {
   showAnnotationView.value = false
+  // Limpiar estado del video si estaba viendo uno
+  if (currentVideo.value) {
+    currentVideo.value = null
+    videoFrames.value = []
+    currentFrameIndex.value = 0
+  }
 }
 
 // Funciones auxiliares
@@ -306,13 +498,38 @@ function getImageAnnotationCount(imageId) {
   return store.getAnnotationsByImageId(imageId).length
 }
 
+function formatDuration(seconds) {
+  if (!seconds) return '0:00'
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
+function formatTimestamp(seconds) {
+  if (!seconds) return '0:00'
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+  return `${mins}:${secs.toString().padStart(2, '0')}`
+}
+
 // Watch para cargar anotaciones cuando cambie la imagen actual
 watch(currentImageIndex, async (newIndex) => {
-  if (store.images[newIndex] && showAnnotationView.value) {
+  if (store.images[newIndex] && showAnnotationView.value && !currentVideo.value) {
     try {
       await store.loadAnnotations(store.images[newIndex]._id)
     } catch (error) {
       console.error('Error al cargar anotaciones:', error)
+    }
+  }
+})
+
+// Watch para cargar anotaciones cuando cambie el frame del video
+watch(currentFrameIndex, async (newIndex) => {
+  if (currentVideo.value && videoFrames.value[newIndex] && showAnnotationView.value) {
+    try {
+      await store.loadAnnotations(videoFrames.value[newIndex]._id)
+    } catch (error) {
+      console.error('Error al cargar anotaciones del frame:', error)
     }
   }
 })
@@ -601,5 +818,137 @@ watch(currentImageIndex, async (newIndex) => {
   background: #f8f9fa;
   border-radius: 8px;
   overflow: auto;
+}
+
+/* Estilos para videos */
+.videos-section {
+  margin-top: 2rem;
+}
+
+.section-title {
+  font-size: 1.1rem;
+  color: #2c3e50;
+  margin-bottom: 1rem;
+  padding-left: 0.5rem;
+  border-left: 4px solid #3498db;
+}
+
+.video-item .video-thumbnail {
+  position: relative;
+  width: 100%;
+  height: 150px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+}
+
+.video-icon {
+  font-size: 3rem;
+  opacity: 0.9;
+}
+
+.video-duration {
+  position: absolute;
+  bottom: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+/* Navegador de frames */
+.frames-navigator {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: #2c3e50;
+  padding: 1rem;
+  border-top: 2px solid #34495e;
+  max-height: 180px;
+}
+
+.frames-scroll {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.5rem;
+}
+
+.frames-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.frames-scroll::-webkit-scrollbar-track {
+  background: #34495e;
+  border-radius: 4px;
+}
+
+.frames-scroll::-webkit-scrollbar-thumb {
+  background: #7f8c8d;
+  border-radius: 4px;
+}
+
+.frames-scroll::-webkit-scrollbar-thumb:hover {
+  background: #95a5a6;
+}
+
+.frame-thumbnail {
+  flex-shrink: 0;
+  width: 120px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  border-radius: 6px;
+  overflow: hidden;
+  transition: all 0.2s;
+  background: #34495e;
+}
+
+.frame-thumbnail:hover {
+  border-color: #3498db;
+  transform: translateY(-2px);
+}
+
+.frame-thumbnail.active {
+  border-color: #e67e22;
+  box-shadow: 0 0 10px rgba(230, 126, 34, 0.5);
+}
+
+.frame-thumbnail img {
+  width: 100%;
+  height: 80px;
+  object-fit: cover;
+  display: block;
+}
+
+.frame-info {
+  padding: 0.4rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  background: #34495e;
+}
+
+.frame-number {
+  font-size: 0.75rem;
+  color: #ecf0f1;
+  font-weight: 600;
+}
+
+.frame-time {
+  font-size: 0.7rem;
+  color: #95a5a6;
+}
+
+.frame-annotations {
+  font-size: 0.7rem;
+  color: #e67e22;
+  font-weight: 600;
 }
 </style>

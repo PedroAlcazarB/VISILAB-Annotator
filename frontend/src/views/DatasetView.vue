@@ -9,7 +9,7 @@
         </button>
         <div class="dataset-info">
           <h1>{{ dataset.name }}</h1>
-          <p>{{ filteredImages.length }} imágenes{{ filterStatus !== 'all' ? ' filtradas' : '' }}</p>
+          <p>{{ filteredMedia.length }} elementos{{ filterStatus !== 'all' ? ' filtrados' : '' }}</p>
         </div>
       </div>
       
@@ -36,14 +36,20 @@
           <i class="fas fa-chart-bar"></i>
           <h3>Estadísticas</h3>
         </div>
-        <div class="sidebar-stats-cards">
-          <div class="sidebar-stat-card">
-            <i class="fas fa-images sidebar-stat-icon sidebar-icon-images"></i>
-            <div class="sidebar-stat-info">
-              <span class="sidebar-stat-label">Imágenes</span>
-              <span class="sidebar-stat-value">{{ images.length }}</span>
-            </div>
+        <div class="sidebar-stats-cards"><div class="sidebar-stat-card">
+          <i class="fas fa-images sidebar-stat-icon sidebar-icon-images"></i>
+          <div class="sidebar-stat-info">
+            <span class="sidebar-stat-label">Imágenes</span>
+            <span class="sidebar-stat-value">{{ images.length }}</span>
           </div>
+        </div>
+        <div class="sidebar-stat-card">
+          <i class="fas fa-video sidebar-stat-icon sidebar-icon-videos"></i>
+          <div class="sidebar-stat-info">
+            <span class="sidebar-stat-label">Videos</span>
+            <span class="sidebar-stat-value">{{ videos.length }}</span>
+          </div>
+        </div>
           <div class="sidebar-stat-card">
             <i class="fas fa-tags sidebar-stat-icon sidebar-icon-annotations"></i>
             <div class="sidebar-stat-info">
@@ -76,9 +82,9 @@
             <p>Cargando imágenes...</p>
           </div>
           
-          <div v-else-if="images.length === 0" class="no-images">
+          <div v-else-if="!hasAnyMedia" class="no-images">
             <i class="fas fa-images"></i>
-            <p>No se encontraron imágenes en el dataset</p>
+            <p>No se encontraron elementos en el dataset</p>
             <button @click="showUploadModal = true" class="btn btn-primary">
               Subir Imágenes
             </button>
@@ -123,44 +129,70 @@
                 </ul>
               </div>
               <span v-if="filterStatus !== 'all'" class="filter-results">
-                {{ filteredImages.length }} resultado(s)
+                {{ filteredMedia.length }} resultado(s)
               </span>
             </div>
 
             <!-- Mensaje cuando no hay resultados del filtro -->
-            <div v-if="filteredImages.length === 0" class="no-images">
+            <div v-if="filteredMedia.length === 0" class="no-images">
               <i class="fas fa-filter"></i>
-              <p>No hay imágenes que coincidan con el filtro seleccionado</p>
+              <p>No hay elementos que coincidan con el filtro seleccionado</p>
               <button @click="filterStatus = 'all'" class="btn btn-secondary">
                 Limpiar filtro
               </button>
             </div>
 
-            <!-- Grid de imágenes filtradas -->
+            <!-- Grid mixto de imágenes y videos -->
             <div v-else class="images-container">
               <div class="image-grid">
-                <div 
-                  v-for="image in paginatedImages" 
-                  :key="image._id" 
-                  class="image-card"
-                  @click="openAnnotator(image)"
+                <div
+                  v-for="media in paginatedMedia"
+                  :key="media.id"
+                  :class="['image-card', { 'video-card': media.type === 'video' }]"
+                  @click="media.type === 'video' ? openVideoAnnotator(media.item) : openAnnotator(media.item)"
                 >
-                  <img 
-                    :src="`http://localhost:5000/api/images/${image._id}/data`" 
-                    :alt="image.filename"
-                    @error="handleImageError"
-                  />
-                  <div class="image-info">
-                    <p class="filename">{{ image.filename }}</p>
-                    <p class="annotations-count">
-                      {{ getAnnotationCount(image) }} annotations
-                    </p>
-                  </div>
-                  <div class="image-actions">
-                    <button @click.stop="deleteImage(image)" class="btn-icon delete">
-                      <i class="fas fa-trash"></i>
-                    </button>
-                  </div>
+                  <template v-if="media.type === 'video'">
+                    <div class="video-thumbnail" :class="{ 'has-thumbnail': videoThumbnail(media.item) }">
+                      <img
+                        v-if="videoThumbnail(media.item)"
+                        :src="videoThumbnail(media.item)"
+                        :alt="`Vista previa de ${media.item.filename}`"
+                        class="video-thumbnail-image"
+                      />
+                      <span v-else class="video-icon">🎬</span>
+                      <span class="video-duration">{{ formatDuration(media.item.duration) }}</span>
+                    </div>
+                    <div class="image-info">
+                      <p class="filename">{{ media.item.filename }}</p>
+                      <p class="annotations-count">
+                        {{ media.item.frames_count || 0 }} frames • {{ Math.round(media.item.fps || 0) }} fps
+                      </p>
+                    </div>
+                    <div class="image-actions">
+                      <button @click.stop="deleteVideo(media.item)" class="btn-icon delete">
+                        <i class="fas fa-trash"></i>
+                      </button>
+                    </div>
+                  </template>
+
+                  <template v-else>
+                    <img
+                      :src="`http://localhost:5000/api/images/${media.item._id}/data`"
+                      :alt="media.item.filename"
+                      @error="handleImageError"
+                    />
+                    <div class="image-info">
+                      <p class="filename">{{ media.item.filename }}</p>
+                      <p class="annotations-count">
+                        {{ getAnnotationCount(media.item) }} annotations
+                      </p>
+                    </div>
+                    <div class="image-actions">
+                      <button @click.stop="deleteImage(media.item)" class="btn-icon delete">
+                        <i class="fas fa-trash"></i>
+                      </button>
+                    </div>
+                  </template>
                 </div>
               </div>
             </div>
@@ -168,7 +200,7 @@
         </div>
 
         <!-- Paginación fija al final -->
-        <div v-if="!loading && images.length > 0 && filteredImages.length > 0 && totalPages > 1" class="pagination-container">
+        <div v-if="!loading && hasAnyMedia && filteredMedia.length > 0 && totalPages > 1" class="pagination-container">
           <div class="pagination">
             <button 
               @click="goToPage(currentPage - 1)"
@@ -199,10 +231,10 @@
           </div>
 
           <!-- Información de página actual -->
-          <div v-if="filteredImages.length > 0" class="page-info">
+          <div v-if="filteredMedia.length > 0" class="page-info">
             <span>Página {{ currentPage }} de {{ totalPages }}</span>
             <span class="separator">•</span>
-            <span>Mostrando {{ startIndex + 1 }}-{{ Math.min(endIndex, filteredImages.length) }} de {{ filteredImages.length }} imágenes</span>
+            <span>Mostrando {{ Math.min(startIndex + 1, filteredMedia.length) }}-{{ Math.min(endIndex, filteredMedia.length) }} de {{ filteredMedia.length }} elementos</span>
           </div>
         </div>
       </div>
@@ -261,16 +293,42 @@
           <CategoryManager />
         </div>
         
-        <!-- Canvas principal -->
-        <div class="annotator-canvas">
-          <AnnotationsCanvas 
-            ref="annotationsCanvas"
-            :image-url="`http://localhost:5000/api/images/${selectedImage._id}/data`"
-            :image-id="selectedImage._id"
-            :active-tool="store.activeTool"
-            :tool-settings="store.toolSettings"
-            @annotation-saved="handleAnnotationSaved"
-          />
+        <!-- Contenedor principal con canvas y frames -->
+        <div class="annotator-main-area">
+          <!-- Canvas principal -->
+          <div class="annotator-canvas canvas-flex">
+            <AnnotationsCanvas 
+              ref="annotationsCanvas"
+              :image-url="`http://localhost:5000/api/images/${selectedImage._id}/data`"
+              :image-id="selectedImage._id"
+              :active-tool="store.activeTool"
+              :tool-settings="store.toolSettings"
+              @annotation-saved="handleAnnotationSaved"
+            />
+          </div>
+          
+          <!-- Navegador de frames (solo visible cuando hay un video seleccionado) -->
+          <div v-if="selectedVideo" class="frames-navigator">
+            <div class="frames-scroll">
+              <div 
+                v-for="(frame, index) in videoFrames" 
+                :key="frame._id"
+                class="frame-thumbnail"
+                :class="{ active: index === currentFrameIndex }"
+                @click="selectFrame(index)"
+              >
+                <img 
+                  :src="`http://localhost:5000/api/images/${frame._id}/data`" 
+                  :alt="`Frame ${index + 1}`"
+                />
+                <div class="frame-info">
+                  <span class="frame-number">Frame {{ index + 1 }}</span>
+                  <span class="frame-time">{{ formatTimestamp(frame.timestamp) }}</span>
+                  <span class="frame-annotations">{{ getAnnotationCount(frame) }} ann.</span>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
         
         <!-- Panel lateral derecho - Herramientas de IA -->
@@ -278,10 +336,12 @@
           <AITools 
             :current-image="selectedImage"
             :dataset-id="dataset._id"
+            :can-navigate-previous="canNavigatePrevious"
+            :can-navigate-next="canNavigateNext"
             @model-loaded="handleModelLoaded"
             @model-unloaded="handleModelUnloaded"
             @annotations-updated="handleAnnotationsUpdated"
-            @navigate-to-image="handleNavigateToImage"
+            @navigate="handleNavigateRequest"
           />
         </div>
       </div>
@@ -329,13 +389,19 @@ export default {
       selectedImage: null,
       filterStatus: 'all',
       filterOptions: [
-        { value: 'all', label: 'Todas las imágenes' },
+        { value: 'all', label: 'Todos los elementos' },
         { value: 'with-annotations', label: 'Con anotaciones' },
         { value: 'no-annotations', label: 'Sin anotaciones' }
       ],
       isFilterDropdownOpen: false,
       currentPage: 1,
-      imagesPerPage: 24
+      imagesPerPage: 24,
+      // Estado para videos
+      videos: [],
+      videoThumbnails: {},
+      selectedVideo: null,
+      videoFrames: [],
+      currentFrameIndex: 0
     }
   },
   computed: {
@@ -345,29 +411,75 @@ export default {
     annotations() {
       return this.store.annotations
     },
+    totalMediaCount() {
+      return this.images.length + this.videos.length
+    },
+    hasAnyMedia() {
+      return this.totalMediaCount > 0
+    },
     totalAnnotations() {
-      // Sumar todos los contadores de anotaciones de las imágenes
-      return this.images.reduce((total, image) => {
+      const imageAnnotations = this.images.reduce((total, image) => {
         return total + (image.annotation_count || 0)
       }, 0)
+      const videoAnnotations = this.videos.reduce((total, video) => {
+        return total + (video.annotation_count || 0)
+      }, 0)
+      return imageAnnotations + videoAnnotations
     },
-    filteredImages() {
+    mediaItems() {
+      const combined = []
+      let orderIndex = 0
+
+      for (const video of this.videos) {
+        combined.push({
+          id: `video-${video._id}`,
+          type: 'video',
+          item: video,
+          annotationCount: video.annotation_count || 0,
+          sortDate: this.getMediaSortDate(video),
+          orderIndex: orderIndex += 1
+        })
+      }
+
+      for (const image of this.images) {
+        combined.push({
+          id: `image-${image._id}`,
+          type: 'image',
+          item: image,
+          annotationCount: this.getAnnotationCount(image),
+          sortDate: this.getMediaSortDate(image),
+          orderIndex: orderIndex += 1
+        })
+      }
+
+      return combined.sort((a, b) => {
+        if (a.sortDate === b.sortDate) {
+          return a.orderIndex - b.orderIndex
+        }
+        return a.sortDate - b.sortDate
+      })
+    },
+    filteredMedia() {
       if (this.filterStatus === 'with-annotations') {
-        return this.images.filter(image => this.getAnnotationCount(image) > 0)
+        return this.mediaItems.filter(entry => entry.annotationCount > 0)
       }
       if (this.filterStatus === 'no-annotations') {
-        return this.images.filter(image => this.getAnnotationCount(image) === 0)
+        return this.mediaItems.filter(entry => entry.annotationCount === 0)
       }
-      return this.images
+      return this.mediaItems
     },
     imagesWithAnnotationsCount() {
-      return this.images.filter(image => this.getAnnotationCount(image) > 0).length
+      const imageCount = this.images.filter(image => this.getAnnotationCount(image) > 0).length
+      const videoCount = this.videos.filter(video => (video.annotation_count || 0) > 0).length
+      return imageCount + videoCount
     },
     imagesWithoutAnnotationsCount() {
-      return this.images.filter(image => this.getAnnotationCount(image) === 0).length
+      const imageCount = this.images.filter(image => this.getAnnotationCount(image) === 0).length
+      const videoCount = this.videos.filter(video => (video.annotation_count || 0) === 0).length
+      return imageCount + videoCount
     },
     totalPages() {
-      return Math.ceil(this.filteredImages.length / this.imagesPerPage)
+      return Math.ceil(this.filteredMedia.length / this.imagesPerPage)
     },
     startIndex() {
       return (this.currentPage - 1) * this.imagesPerPage
@@ -375,8 +487,8 @@ export default {
     endIndex() {
       return this.startIndex + this.imagesPerPage
     },
-    paginatedImages() {
-      return this.filteredImages.slice(this.startIndex, this.endIndex)
+    paginatedMedia() {
+      return this.filteredMedia.slice(this.startIndex, this.endIndex)
     },
     visiblePages() {
       const pages = []
@@ -391,12 +503,42 @@ export default {
     filterStatusLabel() {
       const match = this.filterOptions.find(option => option.value === this.filterStatus)
       return match ? match.label : 'Filtrar'
+    },
+    currentMediaKey() {
+      if (this.selectedVideo) {
+        return `video-${this.selectedVideo._id}`
+      }
+      if (this.selectedImage) {
+        if (this.selectedImage.video_id) {
+          return `video-${this.selectedImage.video_id}`
+        }
+        const imageId = this.selectedImage._id || this.selectedImage.id
+        if (imageId) {
+          return `image-${imageId}`
+        }
+      }
+      return null
+    },
+    canNavigatePrevious() {
+      if (!this.currentMediaKey) {
+        return false
+      }
+      const index = this.mediaItems.findIndex(entry => entry.id === this.currentMediaKey)
+      return index > 0
+    },
+    canNavigateNext() {
+      if (!this.currentMediaKey) {
+        return false
+      }
+      const index = this.mediaItems.findIndex(entry => entry.id === this.currentMediaKey)
+      return index >= 0 && index < this.mediaItems.length - 1
     }
   },
-  mounted() {
+  async mounted() {
     // Establecer contexto del dataset y cargar datos
     this.store.setCurrentDataset(this.dataset)
-    this.loadDatasetData()
+    await this.loadDatasetData()
+    await this.loadVideos()
     document.addEventListener('click', this.handleClickOutside)
   },
   beforeUnmount() {
@@ -408,6 +550,17 @@ export default {
     filterStatus() {
       // Resetear a la primera página cuando cambie el filtro
       this.currentPage = 1
+    },
+    filteredMedia(newList) {
+      if (!Array.isArray(newList) || newList.length === 0) {
+        this.currentPage = 1
+        return
+      }
+
+      const totalPages = Math.ceil(newList.length / this.imagesPerPage)
+      if (totalPages > 0 && this.currentPage > totalPages) {
+        this.currentPage = totalPages
+      }
     }
   },
   methods: {
@@ -430,6 +583,20 @@ export default {
       // Fallback al store si las anotaciones están cargadas
       return this.store.getAnnotationsByImageId(image._id).length
     },
+
+    getMediaSortDate(media) {
+      const candidates = [media?.upload_date, media?.created_at, media?.updated_at]
+      for (const value of candidates) {
+        if (!value) {
+          continue
+        }
+        const parsed = new Date(value)
+        if (!Number.isNaN(parsed.getTime())) {
+          return parsed.getTime()
+        }
+      }
+      return 0
+    },
     
     async deleteImage(image) {
       if (!confirm(`¿Estás seguro de que quieres eliminar "${image.filename}"?`)) {
@@ -448,9 +615,10 @@ export default {
       this.showUploadModal = false
       console.log(`Uploaded ${uploadedImages.length} images successfully`)
       
-      // Recargar imágenes para actualizar la galería
+      // Recargar imágenes y videos para actualizar la galería
       try {
         await this.store.loadImages(this.dataset._id)
+        await this.loadVideos()
       } catch (error) {
         console.error('Error reloading images after upload:', error)
       }
@@ -497,19 +665,22 @@ export default {
     
     async openAnnotator(image) {
       this.selectedImage = image
+      // Limpiar estado de video
+      this.selectedVideo = null
+      this.videoFrames = []
+      this.currentFrameIndex = 0
       // Establecer la imagen actual en el store (ya carga automáticamente las anotaciones)
       await this.store.setCurrentImage(image)
     },
     
     closeAnnotator() {
       this.selectedImage = null
+      this.selectedVideo = null
+      this.videoFrames = []
+      this.currentFrameIndex = 0
       // Las anotaciones se manejan automáticamente por el store
     },
     
-    handleAnnotationsUpdated() {
-      this.handleAnnotationSaved()
-    },
-
     handleAnnotationSaved() {
       // Actualizar el contador de anotaciones en la imagen actual
       if (this.selectedImage) {
@@ -553,34 +724,255 @@ export default {
       }
     },
     
-    async handleAnnotationsUpdated(updateData) {
-      console.log('Annotations updated from AI prediction:', updateData)
-      
-      // Refrescar las anotaciones en el store para la imagen actual
-      if (this.selectedImage) {
-        await this.store.loadAnnotations(this.selectedImage._id)
-        
-        // Actualizar el contador de anotaciones después de recargar
-        this.handleAnnotationSaved()
-      }
-      
-      // Si se crearon categorías nuevas, refrescar las categorías
-      if (updateData.created_categories && updateData.created_categories.length > 0) {
-        await this.store.loadCategories(this.dataset._id)
-      }
-      
-      // Mostrar mensaje de éxito si está disponible
-      if (updateData.message) {
-        console.log(updateData.message)
+    async handleAnnotationsUpdated(updateData = {}) {
+      console.log('Annotations updated:', updateData)
+
+      try {
+        const newAnnotations = Array.isArray(updateData.annotations) ? updateData.annotations : []
+        const canvasRef = this.$refs.annotationsCanvas
+
+        if (
+          this.selectedImage &&
+          newAnnotations.length > 0 &&
+          canvasRef &&
+          typeof canvasRef.getImageMetrics === 'function'
+        ) {
+          const metrics = canvasRef.getImageMetrics()
+          const scaleX = Number(metrics?.scaleX) || 0
+          const scaleY = Number(metrics?.scaleY) || 0
+
+          if (scaleX > 0 && scaleY > 0 && (scaleX !== 1 || scaleY !== 1)) {
+            const updates = newAnnotations
+              .filter(ann => ann && ann._id && Array.isArray(ann.bbox) && ann.bbox.length >= 4)
+              .map(ann => {
+                const [x, y, w, h] = ann.bbox.map(Number)
+                const scaledBBox = [x * scaleX, y * scaleY, w * scaleX, h * scaleY]
+                return this.store.updateAnnotation(ann._id, { bbox: scaledBBox })
+              })
+
+            if (updates.length) {
+              await Promise.allSettled(updates)
+            }
+          }
+        }
+
+        if (this.selectedImage) {
+          await this.store.loadAnnotations(this.selectedImage._id)
+          this.handleAnnotationSaved()
+        }
+
+        if (updateData.created_categories && updateData.created_categories.length > 0) {
+          await this.store.loadCategories(this.dataset._id)
+        }
+
+        if (updateData.message) {
+          console.log(updateData.message)
+        }
+      } catch (error) {
+        console.error('Error al refrescar anotaciones tras la predicción:', error)
       }
     },
     
     async handleNavigateToImage(image) {
+      if (!image) {
+        return
+      }
+
+      if (image.video_id) {
+        const targetVideo = this.videos.find(video => video._id === image.video_id)
+        if (targetVideo) {
+          await this.openVideoAnnotator(targetVideo)
+          const targetFrameIndex = this.videoFrames.findIndex(frame => frame._id === image._id)
+          if (targetFrameIndex >= 0) {
+            await this.selectFrame(targetFrameIndex)
+          }
+          return
+        }
+      }
+
       // Cambiar a la nueva imagen
       await this.openAnnotator(image)
       
       // Limpiar predicciones si la predicción automática está deshabilitada
       // (el componente AITools se encargará de esto a través de su watcher)
+    },
+
+    async handleNavigateRequest(direction) {
+      if (!direction) {
+        return
+      }
+
+      const offset = direction === 'previous' ? -1 : direction === 'next' ? 1 : 0
+      if (offset === 0) {
+        return
+      }
+
+      if (!this.currentMediaKey) {
+        return
+      }
+
+      const currentIndex = this.mediaItems.findIndex(entry => entry.id === this.currentMediaKey)
+      if (currentIndex === -1) {
+        return
+      }
+
+      const targetIndex = currentIndex + offset
+      if (targetIndex < 0 || targetIndex >= this.mediaItems.length) {
+        return
+      }
+
+      const target = this.mediaItems[targetIndex]
+      if (!target) {
+        return
+      }
+
+      if (target.type === 'video') {
+        await this.openVideoAnnotator(target.item)
+      } else {
+        await this.openAnnotator(target.item)
+      }
+    },
+    
+    // Métodos para videos
+    async loadVideos() {
+      try {
+        const data = await window.apiFetch(`/api/videos?dataset_id=${this.dataset._id}`)
+        this.videos = data.videos || []
+        this.videoThumbnails = {}
+
+        await Promise.all(
+          this.videos.map(video => this.prepareVideoThumbnail(video))
+        )
+      } catch (error) {
+        console.error('Error loading videos:', error)
+      }
+    },
+
+    async prepareVideoThumbnail(video) {
+      if (!video || !video._id) {
+        return null
+      }
+
+      // Usar thumbnail existente si está disponible
+      if (video.thumbnail_frame_id) {
+        const url = `http://localhost:5000/api/images/${video.thumbnail_frame_id}/data`
+        this.videoThumbnails[video._id] = url
+        return url
+      }
+
+      try {
+        const response = await window.apiFetch(`/api/videos/${video._id}/frames?limit=1`)
+        const frame = response.frames && response.frames[0]
+
+        if (frame && frame._id) {
+          const url = `http://localhost:5000/api/images/${frame._id}/data`
+          this.videoThumbnails[video._id] = url
+          video.thumbnail_frame_id = frame._id
+          return url
+        }
+      } catch (error) {
+        console.error(`Error loading thumbnail for video ${video._id}:`, error)
+      }
+
+      return null
+    },
+
+    videoThumbnail(video) {
+      if (!video || !video._id) {
+        return null
+      }
+      return this.videoThumbnails[video._id] || null
+    },
+    
+    async openVideoAnnotator(video) {
+      this.selectedVideo = video
+      this.selectedImage = null
+      
+      // Cargar frames del video
+      await this.loadVideoFrames(video._id)
+      
+      // Abrir el anotador con el primer frame
+      if (this.videoFrames.length > 0) {
+        this.currentFrameIndex = 0
+        this.selectedImage = this.videoFrames[0]
+        // Establecer imagen actual en el store para que el canvas se actualice
+        await this.store.setCurrentImage(this.selectedImage)
+        await this.store.loadAnnotations(this.selectedImage._id)
+      }
+    },
+    
+    async loadVideoFrames(videoId) {
+      try {
+        const data = await window.apiFetch(`/api/videos/${videoId}/frames`)
+        this.videoFrames = data.frames || []
+      } catch (error) {
+        console.error('Error loading video frames:', error)
+      }
+    },
+    
+    async selectFrame(index) {
+      this.currentFrameIndex = index
+      if (this.videoFrames[index]) {
+        this.selectedImage = this.videoFrames[index]
+        // Establecer imagen actual en el store para que el canvas se actualice
+        await this.store.setCurrentImage(this.selectedImage)
+        await this.store.loadAnnotations(this.selectedImage._id)
+      }
+    },
+    
+    previousFrame() {
+      if (this.selectedVideo && this.currentFrameIndex > 0) {
+        this.selectFrame(this.currentFrameIndex - 1)
+      }
+    },
+    
+    nextFrame() {
+      if (this.selectedVideo && this.currentFrameIndex < this.videoFrames.length - 1) {
+        this.selectFrame(this.currentFrameIndex + 1)
+      }
+    },
+    
+    closeVideoAnnotator() {
+      this.selectedImage = null
+      this.selectedVideo = null
+      this.videoFrames = []
+      this.currentFrameIndex = 0
+    },
+    
+    async deleteVideo(video) {
+      if (!confirm(`¿Estás seguro de que quieres eliminar el video "${video.filename}" y todos sus frames?`)) {
+        return
+      }
+      
+      try {
+        await window.apiFetch(`/api/videos/${video._id}`, {
+          method: 'DELETE'
+        })
+        
+        // Recargar lista de videos
+        await this.loadVideos()
+        
+        // Recargar imágenes (se eliminaron los frames)
+        await this.store.loadImages(this.dataset._id)
+      } catch (error) {
+        console.error('Error deleting video:', error)
+        alert('Error al eliminar el video')
+      }
+    },
+    
+    formatDuration(seconds) {
+      if (!seconds) return '0:00'
+      const mins = Math.floor(seconds / 60)
+      const secs = Math.floor(seconds % 60)
+      return `${mins}:${secs.toString().padStart(2, '0')}`
+    },
+    
+    formatTimestamp(seconds) {
+      if (!seconds && seconds !== 0) return '0:00'
+      const mins = Math.floor(seconds / 60)
+      const secs = (seconds % 60).toFixed(2)
+      // Mostrar minutos:segundos exactos redondeados (MM:SS.xx)
+      return `${mins}:${parseFloat(secs).toFixed(2).padStart(5, '0')}`
     }
   }
 }
@@ -1170,6 +1562,7 @@ export default {
   display: flex;
   flex: 1;
   height: calc(100vh - 60px);
+  overflow: hidden;
 }
 
 .annotator-sidebar {
@@ -1180,13 +1573,32 @@ export default {
   flex-shrink: 0;
 }
 
+.annotator-main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: #ffffff;
+  min-height: 0;
+}
+
 .annotator-canvas {
   flex: 1;
   background: #ffffff;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
+  overflow: auto;
+  min-height: 0;
+  padding: 20px;
+}
+.canvas-flex {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
 }
 
 .annotator-ai-sidebar {
@@ -1323,8 +1735,13 @@ export default {
   border-radius: 6px;
 }
 .sidebar-icon-images {
-  color: #3498db;
-  background: rgba(52, 152, 219, 0.15);
+  color: #4da3ff;
+  background: rgba(77, 163, 255, 0.15);
+}
+
+.sidebar-icon-videos {
+  color: #26c6da;
+  background: rgba(142, 68, 173, 0.15);
 }
 .sidebar-icon-annotations {
   color: #f39c12;
@@ -1386,5 +1803,152 @@ export default {
   .annotations-count {
     font-size: 0.7rem;
   }
+}
+
+/* Estilos para videos mezclados con imágenes */
+.image-card.video-card:hover {
+  box-shadow: 0 6px 16px rgba(0,0,0,0.15);
+  transform: translateY(-3px);
+  border-color: #667eea;
+}
+
+.video-thumbnail {
+  position: relative;
+  width: 100%;
+  height: 140px;  /* Mismo alto que las imágenes */
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.video-thumbnail.has-thumbnail {
+  background: #000;
+}
+
+.video-thumbnail-image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 12px 12px 0 0;
+}
+
+.video-icon {
+  font-size: 2.5rem;  /* Reducido para ajustarse mejor */
+  opacity: 0.95;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
+}
+
+.video-duration {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(0, 0, 0, 0.75);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+
+
+/* Navegador de frames */
+.frames-navigator {
+  flex-shrink: 0;
+  background: #2c3e50;
+  padding: 0.75rem 1rem;
+  border-top: 2px solid #34495e;
+  min-height: 160px;
+  max-height: 160px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.frames-scroll {
+  display: flex;
+  gap: 0.75rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 0.5rem;
+  flex: 1;
+}
+
+.frames-scroll::-webkit-scrollbar {
+  height: 8px;
+}
+
+.frames-scroll::-webkit-scrollbar-track {
+  background: #34495e;
+  border-radius: 4px;
+}
+
+.frames-scroll::-webkit-scrollbar-thumb {
+  background: #7f8c8d;
+  border-radius: 4px;
+}
+
+.frames-scroll::-webkit-scrollbar-thumb:hover {
+  background: #95a5a6;
+}
+
+.frame-thumbnail {
+  flex-shrink: 0;
+  width: 140px;
+  cursor: pointer;
+  border: 3px solid transparent;
+  border-radius: 6px;
+  overflow: hidden;
+  transition: all 0.2s;
+  background: #34495e;
+}
+
+.frame-thumbnail:hover {
+  border-color: #3498db;
+  transform: translateY(-2px);
+}
+
+.frame-thumbnail.active {
+  border-color: #e67e22;
+  box-shadow: 0 0 12px rgba(230, 126, 34, 0.6);
+}
+
+.frame-thumbnail img {
+  width: 100%;
+  height: 74px;
+  object-fit: contain;
+  background-color: #000;
+  display: block;
+}
+
+.frame-info {
+  padding: 0.35rem 0.4rem;
+  display: flex;
+  flex-direction: column;
+  background: #34495e;
+}
+
+.frame-number {
+  font-size: 0.72rem;
+  color: #ecf0f1;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.frame-time {
+  font-size: 0.68rem;
+  color: #95a5a6;
+  line-height: 1.2;
+}
+
+.frame-annotations {
+  font-size: 0.7rem;
+  color: #e67e22;
+  font-weight: 700;
+  line-height: 1.2;
 }
 </style>

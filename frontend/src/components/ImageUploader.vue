@@ -3,7 +3,7 @@
     <div class="upload-area" @dragover.prevent="dragover = true" 
          @dragleave="dragover = false" @drop.prevent="handleDrop"
          :class="{ 'dragover': dragover, 'uploading': uploading }">
-      <input type="file" ref="fileInput" @change="handleFileChange" accept="image/*,.zip" multiple hidden>
+      <input type="file" ref="fileInput" @change="handleFileChange" accept="image/*,video/*,.zip" multiple hidden>
       
       <!-- Estado de carga -->
       <div v-if="uploading" class="upload-progress">
@@ -14,8 +14,8 @@
       <!-- Prompt de subida -->
       <div v-else-if="!displayUrl" class="upload-prompt" @click="triggerFileInput">
         <span class="icon">📁</span>
-        <p>Arrastra imágenes o archivos ZIP aquí o haz clic para seleccionar</p>
-        <p class="help-text">Puedes seleccionar múltiples archivos o un ZIP con imágenes</p>
+        <p>Arrastra imágenes, videos o archivos ZIP aquí o haz clic para seleccionar</p>
+        <p class="help-text">Puedes seleccionar múltiples archivos, videos o un ZIP con contenido</p>
       </div>
       
       <!-- Preview de imagen -->
@@ -137,6 +137,20 @@ const uploadFiles = async (fileList) => {
           alert(`Error al procesar el archivo ZIP: ${error.message}`)
         }
       }
+      // Manejar videos
+      else if (file.type.startsWith('video/')) {
+        try {
+          uploadMessage.value = `Procesando video ${file.name}... Esto puede tardar un momento.`
+          const uploadedVideo = await uploadVideo(file)
+          uploadedImages.push(uploadedVideo)
+          
+          // Mostrar mensaje de éxito
+          uploadMessage.value = `Video procesado: ${uploadedVideo.frames_count} frames extraídos`
+        } catch (error) {
+          console.error(`Error al subir video ${file.name}:`, error)
+          alert(`Error al procesar el video: ${error.message}`)
+        }
+      }
       // Manejar imágenes individuales
       else if (file.type.startsWith('image/')) {
         try {
@@ -193,6 +207,29 @@ const uploadZipFile = async (zipFile) => {
   }
   
   return images
+}
+
+const uploadVideo = async (videoFile) => {
+  if (!props.datasetId) {
+    throw new Error('Se requiere un dataset para subir videos')
+  }
+  
+  const formData = new FormData()
+  formData.append('image', videoFile)  // El backend espera 'image' como nombre del campo
+  formData.append('dataset_id', props.datasetId)
+  
+  // Usar window.apiFetch que maneja la autenticación automáticamente
+  const data = await window.apiFetch('/api/images', {
+    method: 'POST',
+    body: formData
+  })
+  
+  // Si es un video, el backend devuelve información del video y frames
+  if (data.video) {
+    return data
+  }
+  
+  return data
 }
 
 const loadPreview = (file) => {
