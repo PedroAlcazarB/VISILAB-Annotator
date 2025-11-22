@@ -336,7 +336,7 @@ export default {
 }
 
 .models-container {
-  max-width: 1400px;
+  max-width: 87.5rem;
   margin: 0 auto;
 }
 
@@ -362,9 +362,9 @@ export default {
 }
 
 .spinner {
-  width: 50px;
-  height: 50px;
-  border: 4px solid #e2e8f0;
+  width: 3.125rem;
+  height: 3.125rem;
+  border: 0.25rem solid #e2e8f0;
   border-top-color: #3b82f6;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
@@ -399,8 +399,8 @@ export default {
   text-align: center;
   padding: 3rem 2rem;
   background: white;
-  border-radius: 12px;
-  border: 2px dashed #e2e8f0;
+  border-radius: 0.75rem;
+  border: 0.125rem dashed #e2e8f0;
 }
 
 .empty-state i {
@@ -416,29 +416,29 @@ export default {
 
 .models-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
   gap: 1.5rem;
 }
 
 .model-card {
   background: white;
-  border-radius: 12px;
-  border: 1px solid #e2e8f0;
+  border-radius: 0.75rem;
+  border: 0.0625rem solid #e2e8f0;
   overflow: hidden;
   transition: all 0.2s;
 }
 
 .model-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transform: translateY(-2px);
+  box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.1);
+  transform: translateY(-0.125rem);
 }
 
 .model-card.preloaded {
-  border-left: 4px solid #f59e0b;
+  border-left: 0.25rem solid #f59e0b;
 }
 
 .model-card.custom {
-  border-left: 4px solid #3b82f6;
+  border-left: 0.25rem solid #3b82f6;
 }
 
 .model-header {
@@ -453,7 +453,7 @@ export default {
   background: #fef3c7;
   color: #92400e;
   padding: 0.25rem 0.75rem;
-  border-radius: 20px;
+  border-radius: 1.25rem;
   font-size: 0.75rem;
   font-weight: 600;
   display: flex;
@@ -511,7 +511,7 @@ export default {
   background: #f1f5f9;
   color: #475569;
   padding: 0.25rem 0.75rem;
-  border-radius: 20px;
+  border-radius: 1.25rem;
   font-size: 0.75rem;
   font-weight: 500;
 }
@@ -544,8 +544,8 @@ export default {
 
 .modal {
   background: white;
-  border-radius: 12px;
-  max-width: 600px;
+  border-radius: 0.75rem;
+  max-width: 37.5rem;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
@@ -554,7 +554,7 @@ export default {
 
 .modal-header {
   padding: 1.5rem;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 0.0625rem solid #e2e8f0;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -575,12 +575,12 @@ export default {
   font-size: 1.5rem;
   color: #64748b;
   cursor: pointer;
-  width: 32px;
-  height: 32px;
+  width: 2rem;
+  height: 2rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   transition: all 0.2s;
 }
 
@@ -614,8 +614,8 @@ export default {
 .form-control {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #e2e8f0;
-  border-radius: 8px;
+  border: 0.0625rem solid #e2e8f0;
+  border-radius: 0.5rem;
   font-size: 0.95rem;
   transition: all 0.2s;
 }
@@ -623,7 +623,7 @@ export default {
 .form-control:focus {
   outline: none;
   border-color: #3b82f6;
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 0.1875rem rgba(59, 130, 246, 0.1);
 }
 
 .form-control.file-input {
@@ -637,7 +637,7 @@ export default {
 
 .alert {
   padding: 0.75rem 1rem;
-  border-radius: 8px;
+  border-radius: 0.5rem;
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -647,13 +647,13 @@ export default {
 .alert-error {
   background: #fef2f2;
   color: #dc2626;
-  border: 1px solid #fecaca;
+  border: 0.0625rem solid #fecaca;
 }
 
 .alert-success {
   background: #f0fdf4;
   color: #16a34a;
-  border: 1px solid #bbf7d0;
+  border: 0.0625rem solid #bbf7d0;
 }
 
 .form-actions {
@@ -667,7 +667,7 @@ export default {
 .btn {
   padding: 0.75rem 1.5rem;
   border: none;
-  border-radius: 8px;
+  border-radius: 0.5rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -690,8 +690,8 @@ export default {
 
 .btn-primary:hover:not(:disabled) {
   background: #2563eb;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  transform: translateY(-0.0625rem);
+  box-shadow: 0 0.25rem 0.75rem rgba(59, 130, 246, 0.3);
 }
 
 .btn-secondary {
@@ -712,12 +712,12 @@ export default {
 
 .btn-danger:hover:not(:disabled) {
   background: #dc2626;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+  transform: translateY(-0.0625rem);
+  box-shadow: 0 0.25rem 0.75rem rgba(239, 68, 68, 0.3);
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 48em) {
   .models-view {
     padding: 1rem;
   }

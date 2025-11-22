@@ -475,12 +475,12 @@ onMounted(() => {
 /* Header */
 .page-header {
   background: white;
-  border-bottom: 1px solid #e1e5e9;
+  border-bottom: 0.0625rem solid #e1e5e9;
   padding: 2rem 0;
 }
 
 .header-content {
-  max-width: 1200px;
+  max-width: 75rem;
   margin: 0 auto;
   padding: 0 2rem;
   display: flex;
@@ -515,7 +515,7 @@ onMounted(() => {
 
 /* Categories Container */
 .categories-container {
-  max-width: 1200px;
+  max-width: 75rem;
   margin: 0 auto;
   padding: 2rem;
 }
@@ -543,8 +543,8 @@ onMounted(() => {
   font-size: 1.1rem;
   font-weight: 600;
   margin-top: 1.5rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+  border-radius: 0.5rem;
+  box-shadow: 0 0.125rem 0.5rem rgba(52, 152, 219, 0.3);
   transition: all 0.3s ease;
   display: inline-flex;
   align-items: center;
@@ -553,8 +553,8 @@ onMounted(() => {
 }
 
 .empty-state .btn-large:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(52, 152, 219, 0.4);
+  transform: translateY(-0.125rem);
+  box-shadow: 0 0.25rem 0.75rem rgba(52, 152, 219, 0.4);
 }
 
 .empty-state .btn-large i {
@@ -570,27 +570,27 @@ onMounted(() => {
 /* Categories Grid */
 .categories-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(20rem, 1fr));
   gap: 1.5rem;
 }
 
 .category-card {
   background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  border-radius: 0.5rem;
+  box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.1);
   transition: all 0.2s ease;
   cursor: pointer;
   overflow: hidden;
 }
 
 .category-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  transform: translateY(-0.125rem);
+  box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,0.15);
 }
 
 .card-header {
   padding: 1.5rem;
-  border-bottom: 1px solid #f1f3f4;
+  border-bottom: 0.0625rem solid #f1f3f4;
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -611,11 +611,11 @@ onMounted(() => {
 }
 
 .category-color {
-  width: 24px;
-  height: 24px;
+  width: 1.5rem;
+  height: 1.5rem;
   border-radius: 50%;
-  border: 2px solid white;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  border: 0.125rem solid white;
+  box-shadow: 0 0.0625rem 0.1875rem rgba(0,0,0,0.3);
   flex-shrink: 0;
 }
 
@@ -628,18 +628,18 @@ onMounted(() => {
 
 .btn-icon {
   background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  border: 0.0625rem solid rgba(0, 0, 0, 0.15);
   padding: 0.4rem;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   cursor: pointer;
   font-size: 0.8rem;
   transition: all 0.2s;
-  min-width: 28px;
-  min-height: 28px;
+  min-width: 1.75rem;
+  min-height: 1.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0.0625rem 0.125rem rgba(0, 0, 0, 0.1);
 }
 
 .btn-edit {
@@ -652,8 +652,8 @@ onMounted(() => {
   background: rgba(52, 152, 219, 0.25);
   border-color: rgba(52, 152, 219, 0.6);
   color: #1e6091;
-  transform: translateY(-0.5px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  transform: translateY(-0.03125rem);
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.15);
 }
 
 .btn-delete {
@@ -666,8 +666,8 @@ onMounted(() => {
   background: rgba(231, 76, 60, 0.25);
   border-color: rgba(231, 76, 60, 0.6);
   color: #a93226;
-  transform: translateY(-0.5px);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+  transform: translateY(-0.03125rem);
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.15);
 }
 
 .btn-delete:disabled {
@@ -690,7 +690,7 @@ onMounted(() => {
   color: #7f8c8d;
   padding: 0.4rem 0.8rem;
   background: #f8f9fa;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   width: fit-content;
 }
 
@@ -730,7 +730,7 @@ onMounted(() => {
   gap: 0.5rem;
   padding: 0.6rem 1.2rem;
   border: none;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   font-weight: 500;
   text-decoration: none;
   cursor: pointer;
@@ -777,12 +777,12 @@ onMounted(() => {
 
 .modal-content {
   background: white;
-  border-radius: 12px;
-  max-width: 500px;
+  border-radius: 0.75rem;
+  max-width: 31.25rem;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  box-shadow: 0 0.25rem 1.25rem rgba(0,0,0,0.2);
 }
 
 .modal-header {
@@ -790,7 +790,7 @@ onMounted(() => {
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem;
-  border-bottom: 1px solid #e1e5e9;
+  border-bottom: 0.0625rem solid #e1e5e9;
 }
 
 .modal-header h2 {
@@ -806,7 +806,7 @@ onMounted(() => {
   cursor: pointer;
   color: #6c757d;
   padding: 0.5rem;
-  border-radius: 4px;
+  border-radius: 0.25rem;
 }
 
 .btn-close:hover {
@@ -820,7 +820,7 @@ onMounted(() => {
 
 .modal-footer {
   padding: 1.5rem;
-  border-top: 1px solid #e1e5e9;
+  border-top: 0.0625rem solid #e1e5e9;
   display: flex;
   gap: 0.5rem;
   justify-content: flex-end;
@@ -841,8 +841,8 @@ onMounted(() => {
 .form-input {
   width: 100%;
   padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 6px;
+  border: 0.0625rem solid #ddd;
+  border-radius: 0.375rem;
   font-size: 0.95rem;
   transition: border-color 0.2s;
 }
@@ -850,7 +850,7 @@ onMounted(() => {
 .form-input:focus {
   outline: none;
   border-color: #3498db;
-  box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+  box-shadow: 0 0 0 0.125rem rgba(52, 152, 219, 0.2);
 }
 
 .form-input.error {
@@ -863,10 +863,10 @@ onMounted(() => {
 }
 
 .form-color {
-  width: 60px;
-  height: 45px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
+  width: 3.75rem;
+  height: 2.8125rem;
+  border: 0.0625rem solid #ddd;
+  border-radius: 0.375rem;
   cursor: pointer;
 }
 
@@ -882,7 +882,7 @@ onMounted(() => {
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 48em) {
   .header-content {
     flex-direction: column;
     align-items: stretch;

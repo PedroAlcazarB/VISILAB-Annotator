@@ -458,7 +458,7 @@ watch(showImportModal, (newValue) => {
 <style scoped>
 .categories-manager {
   background: #f8f9fa;
-  border-radius: 8px;
+  border-radius: 0.5rem;
   padding: 1.5rem;
   margin-bottom: 1rem;
 }
@@ -480,9 +480,9 @@ watch(showImportModal, (newValue) => {
 .add-form {
   background: white;
   padding: 1rem;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   margin-bottom: 1rem;
-  border: 1px solid #ddd;
+  border: 0.0625rem solid #ddd;
 }
 
 .add-form h4 {
@@ -506,16 +506,16 @@ watch(showImportModal, (newValue) => {
 .form-input {
   width: 100%;
   padding: 0.5rem;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  border: 0.0625rem solid #ddd;
+  border-radius: 0.25rem;
   font-size: 0.9rem;
 }
 
 .form-color {
-  width: 50px;
-  height: 35px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  width: 3.125rem;
+  height: 2.1875rem;
+  border: 0.0625rem solid #ddd;
+  border-radius: 0.25rem;
   cursor: pointer;
 }
 
@@ -529,17 +529,17 @@ watch(showImportModal, (newValue) => {
   color: white;
   border: none;
   padding: 0.6rem 1.2rem;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   cursor: pointer;
   font-weight: 600;
   font-size: 0.9rem;
   transition: all 0.3s ease;
-  box-shadow: 0 2px 6px rgba(39, 174, 96, 0.3);
+  box-shadow: 0 0.125rem 0.375rem rgba(39, 174, 96, 0.3);
 }
 
 .btn-success:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 10px rgba(39, 174, 96, 0.4);
+  transform: translateY(-0.0625rem);
+  box-shadow: 0 0.25rem 0.625rem rgba(39, 174, 96, 0.4);
   background: linear-gradient(135deg, #229954 0%, #27ae60 100%);
 }
 
@@ -557,9 +557,9 @@ watch(showImportModal, (newValue) => {
 .btn-secondary {
   background: #ecf0f1;
   color: #34495e;
-  border: 1px solid #bdc3c7;
+  border: 0.0625rem solid #bdc3c7;
   padding: 0.6rem 1.2rem;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   cursor: pointer;
   font-weight: 600;
   font-size: 0.9rem;
@@ -584,7 +584,7 @@ watch(showImportModal, (newValue) => {
   color: #2c3e50;
   font-size: 1.35rem;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.03125rem;
   text-align: center;
 }
 
@@ -603,7 +603,7 @@ watch(showImportModal, (newValue) => {
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem;
-  border-bottom: 1px solid #e1e5e9;
+  border-bottom: 0.0625rem solid #e1e5e9;
   cursor: pointer;
   transition: background-color 0.2s;
 }
@@ -639,16 +639,16 @@ watch(showImportModal, (newValue) => {
 }
 
 .category-color {
-  width: 16px;
-  height: 16px;
+  width: 1rem;
+  height: 1rem;
   border-radius: 50%;
-  border: 2px solid white;
-  box-shadow: 0 0 0 1px rgba(0,0,0,0.1);
+  border: 0.125rem solid white;
+  box-shadow: 0 0 0 0.0625rem rgba(0,0,0,0.1);
 }
 
 .category-color.small {
-  width: 12px;
-  height: 12px;
+  width: 0.75rem;
+  height: 0.75rem;
 }
 
 .category-details {
@@ -669,7 +669,7 @@ watch(showImportModal, (newValue) => {
   display: flex;
   align-items: center;
   line-height: 1;
-  transform: translateY(-1px);
+  transform: translateY(-0.0625rem);
 }
 
 .category-actions {
@@ -683,7 +683,7 @@ watch(showImportModal, (newValue) => {
   font-size: 1rem;
   cursor: pointer;
   padding: 0.25rem;
-  border-radius: 3px;
+  border-radius: 0.1875rem;
   opacity: 0.7;
   transition: opacity 0.2s;
 }
@@ -695,7 +695,7 @@ watch(showImportModal, (newValue) => {
 
 .annotations-list {
   background: #f8f9fa;
-  border-top: 1px solid #e1e5e9;
+  border-top: 0.0625rem solid #e1e5e9;
 }
 
 .annotation-item {
@@ -703,7 +703,7 @@ watch(showImportModal, (newValue) => {
   align-items: center;
   justify-content: space-between;
   padding: 0.5rem 0.75rem;
-  border-bottom: 1px solid #e1e5e9;
+  border-bottom: 0.0625rem solid #e1e5e9;
   cursor: pointer;
   transition: background-color 0.2s;
 }
@@ -745,7 +745,7 @@ watch(showImportModal, (newValue) => {
   font-size: 0.8rem;
   cursor: pointer;
   padding: 0.1rem;
-  border-radius: 3px;
+  border-radius: 0.1875rem;
   opacity: 0.7;
   transition: opacity 0.2s;
 }
@@ -771,20 +771,20 @@ watch(showImportModal, (newValue) => {
 
 .modal-content {
   background: white;
-  border-radius: 12px;
+  border-radius: 0.75rem;
   padding: 0;
-  min-width: 400px;
-  max-width: 600px;
+  min-width: 25rem;
+  max-width: 37.5rem;
   max-height: 80vh;
   display: flex;
   flex-direction: column;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0.625rem 2.5rem rgba(0, 0, 0, 0.3);
 }
 
 /* Modal específico para edición de categoría */
 .modal-edit {
-  min-width: 350px;
-  max-width: 450px;
+  min-width: 21.875rem;
+  max-width: 28.125rem;
 }
 
 .modal-header {
@@ -792,7 +792,7 @@ watch(showImportModal, (newValue) => {
   justify-content: space-between;
   align-items: center;
   padding: 1.5rem;
-  border-bottom: 1px solid #e0e0e0;
+  border-bottom: 0.0625rem solid #e0e0e0;
 }
 
 .modal-header h3 {
@@ -812,7 +812,7 @@ watch(showImportModal, (newValue) => {
   justify-content: flex-end;
   gap: 0.75rem;
   padding: 1.5rem;
-  border-top: 1px solid #e0e0e0;
+  border-top: 0.0625rem solid #e0e0e0;
   background: #f8f9fa;
 }
 
@@ -823,12 +823,12 @@ watch(showImportModal, (newValue) => {
   cursor: pointer;
   color: #666;
   padding: 0;
-  width: 30px;
-  height: 30px;
+  width: 1.875rem;
+  height: 1.875rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   transition: background 0.3s;
 }
 
@@ -839,8 +839,8 @@ watch(showImportModal, (newValue) => {
 
 .current-selection {
   background: #e8f5e8;
-  border: 1px solid #27ae60;
-  border-radius: 6px;
+  border: 0.0625rem solid #27ae60;
+  border-radius: 0.375rem;
   padding: 1rem;
   margin-top: 1rem;
 }
@@ -871,12 +871,12 @@ watch(showImportModal, (newValue) => {
   color: white;
   border: none;
   padding: 0.65rem 1.25rem;
-  border-radius: 8px;
+  border-radius: 0.5rem;
   cursor: pointer;
   font-weight: 600;
   font-size: 0.9rem;
   transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 0.125rem 0.5rem rgba(102, 126, 234, 0.3);
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -887,14 +887,14 @@ watch(showImportModal, (newValue) => {
 }
 
 .btn-import:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.5);
+  transform: translateY(-0.125rem);
+  box-shadow: 0 0.25rem 0.75rem rgba(102, 126, 234, 0.5);
   background: linear-gradient(135deg, #764ba2 0%, #667eea 100%);
 }
 
 .btn-import:active {
   transform: translateY(0);
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 0.125rem 0.5rem rgba(102, 126, 234, 0.3);
 }
 
 .btn-primary {
@@ -902,12 +902,12 @@ watch(showImportModal, (newValue) => {
   color: white;
   border: none;
   padding: 0.65rem 1.25rem;
-  border-radius: 8px;
+  border-radius: 0.5rem;
   cursor: pointer;
   font-weight: 600;
   font-size: 0.9rem;
   transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0.125rem 0.5rem rgba(59, 130, 246, 0.3);
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -918,14 +918,14 @@ watch(showImportModal, (newValue) => {
 }
 
 .btn-primary:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.5);
+  transform: translateY(-0.125rem);
+  box-shadow: 0 0.25rem 0.75rem rgba(59, 130, 246, 0.5);
   background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
 }
 
 .btn-primary:active {
   transform: translateY(0);
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0.125rem 0.5rem rgba(59, 130, 246, 0.3);
 }
 
 /* ==================== ESTILOS ESPECÍFICOS PARA MODAL DE IMPORTACIÓN ==================== */
@@ -936,16 +936,16 @@ watch(showImportModal, (newValue) => {
 }
 
 .import-categories-list {
-  max-height: 400px;
+  max-height: 25rem;
   overflow-y: auto;
-  border: 1px solid #e0e0e0;
-  border-radius: 6px;
+  border: 0.0625rem solid #e0e0e0;
+  border-radius: 0.375rem;
   padding: 0.5rem;
 }
 
 .import-category-item {
   padding: 0.75rem;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 0.0625rem solid #f0f0f0;
 }
 
 .import-category-item:last-child {
@@ -961,8 +961,8 @@ watch(showImportModal, (newValue) => {
 
 .category-checkbox {
   margin-right: 0.75rem;
-  width: 18px;
-  height: 18px;
+  width: 1.125rem;
+  height: 1.125rem;
   cursor: pointer;
 }
 
@@ -974,11 +974,11 @@ watch(showImportModal, (newValue) => {
 }
 
 .category-color-preview {
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  border: 2px solid #fff;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.25rem;
+  border: 0.125rem solid #fff;
+  box-shadow: 0 0 0 0.0625rem rgba(0, 0, 0, 0.1);
 }
 
 .category-name-import {
@@ -1000,8 +1000,8 @@ watch(showImportModal, (newValue) => {
 
 .empty-state {
   background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
-  border: 2px dashed #e0e6ed;
-  border-radius: 12px;
+  border: 0.125rem dashed #e0e6ed;
+  border-radius: 0.75rem;
   margin: 1rem 0;
 }
 
@@ -1029,7 +1029,7 @@ watch(showImportModal, (newValue) => {
   color: white;
   border: none;
   padding: 0.6rem 1.2rem;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   cursor: pointer;
   font-weight: 600;
   font-size: 0.85rem;
@@ -1038,7 +1038,7 @@ watch(showImportModal, (newValue) => {
   justify-content: center;
   gap: 0.4rem;
   transition: all 0.3s ease;
-  box-shadow: 0 3px 8px rgba(102, 126, 234, 0.4);
+  box-shadow: 0 0.1875rem 0.5rem rgba(102, 126, 234, 0.4);
   margin: 0 auto;
 }
 
@@ -1048,14 +1048,14 @@ watch(showImportModal, (newValue) => {
 }
 
 .btn-create-first:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 8px 25px rgba(139, 92, 246, 0.5);
+  transform: translateY(-0.1875rem);
+  box-shadow: 0 0.5rem 1.5625rem rgba(139, 92, 246, 0.5);
   background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
 }
 
 .btn-create-first:active {
-  transform: translateY(-1px);
-  box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+  transform: translateY(-0.0625rem);
+  box-shadow: 0 0.25rem 0.9375rem rgba(139, 92, 246, 0.3);
 }
 
 @keyframes pulse {

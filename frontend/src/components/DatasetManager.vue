@@ -230,7 +230,7 @@ export default {
 <style scoped>
 .dataset-manager {
   padding: 2rem;
-  max-width: 1400px;
+  max-width: 87.5rem;
   margin: 0 auto;
   min-height: 100vh;
 }
@@ -264,12 +264,12 @@ export default {
 .btn {
   padding: 0.6rem 1.5rem;
   border: none;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   transition: all 0.3s ease;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.1);
   display: inline-flex;
   align-items: center;
   gap: 0.5rem;
@@ -291,36 +291,36 @@ export default {
 }
 
 .btn:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+  transform: translateY(-0.125rem);
+  box-shadow: 0 0.25rem 0.5rem rgba(0, 0, 0, 0.15);
 }
 
 .btn:active {
   transform: translateY(0);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.1);
 }
 
 .dataset-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(13.75rem, 1fr));
   gap: 1.25rem;
   margin-top: 2rem;
 }
 
 .dataset-card {
   background: white;
-  border-radius: 12px;
-  border: 2px solid #e1e8ed;
+  border-radius: 0.75rem;
+  border: 0.125rem solid #e1e8ed;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 0.0625rem 0.1875rem rgba(0, 0, 0, 0.08);
 }
 
 .dataset-card:hover {
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.12);
-  transform: translateY(-4px);
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.12);
+  transform: translateY(-0.25rem);
   border-color: #007bff;
 }
 
@@ -374,12 +374,12 @@ export default {
   font-weight: 500;
   background: #f1f3f5;
   padding: 0.3rem 0.6rem;
-  border-radius: 6px;
+  border-radius: 0.375rem;
 }
 
 .meta-item i {
   color: #007bff;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .creator {
@@ -400,12 +400,12 @@ export default {
 
 .btn-icon {
   background: white;
-  border: 1px solid #e1e8ed;
-  border-radius: 6px;
+  border: 0.0625rem solid #e1e8ed;
+  border-radius: 0.375rem;
   cursor: pointer;
   padding: 0.4rem 0.5rem;
   color: #dc3545;
-  font-size: 13px;
+  font-size: 0.8125rem;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
@@ -441,19 +441,19 @@ export default {
 
 .modal {
   background: white;
-  border-radius: 12px;
+  border-radius: 0.75rem;
   width: 90%;
-  max-width: 520px;
+  max-width: 32.5rem;
   max-height: 90vh;
   overflow: hidden;
-  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+  box-shadow: 0 0.625rem 2.5rem rgba(0,0,0,0.2);
   animation: slideUp 0.3s ease;
 }
 
 @keyframes slideUp {
   from { 
     opacity: 0;
-    transform: translateY(20px);
+    transform: translateY(1.25rem);
   }
   to { 
     opacity: 1;
@@ -465,8 +465,8 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 24px;
-  border-bottom: 1px solid #e5e7eb;
+  padding: 1.5rem;
+  border-bottom: 0.0625rem solid #e5e7eb;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 }
 
@@ -483,9 +483,9 @@ export default {
   font-size: 1.5rem;
   cursor: pointer;
   color: white;
-  width: 32px;
-  height: 32px;
-  border-radius: 6px;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 0.375rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -498,13 +498,13 @@ export default {
 }
 
 .modal-body {
-  padding: 28px 24px;
-  max-height: calc(90vh - 180px);
+  padding: 1.75rem 1.5rem;
+  max-height: calc(90vh - 11.25rem);
   overflow-y: auto;
 }
 
 .form-group {
-  margin-bottom: 24px;
+  margin-bottom: 1.5rem;
 }
 
 .form-group:last-child {
@@ -513,7 +513,7 @@ export default {
 
 .form-group label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 0.5rem;
   font-weight: 600;
   color: #374151;
   font-size: 0.95rem;
@@ -521,10 +521,10 @@ export default {
 
 .form-group input {
   width: 100%;
-  padding: 12px 14px;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
-  font-size: 15px;
+  padding: 0.75rem 0.875rem;
+  border: 0.125rem solid #e5e7eb;
+  border-radius: 0.5rem;
+  font-size: 0.9375rem;
   transition: all 0.2s ease;
   box-sizing: border-box;
 }
@@ -532,7 +532,7 @@ export default {
 .form-group input:focus {
   outline: none;
   border-color: #667eea;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+  box-shadow: 0 0 0 0.1875rem rgba(102, 126, 234, 0.1);
 }
 
 .form-group input.error {
@@ -541,13 +541,13 @@ export default {
 }
 
 .form-group input.error:focus {
-  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+  box-shadow: 0 0 0 0.1875rem rgba(239, 68, 68, 0.1);
 }
 
 .error-text {
   color: #ef4444;
-  font-size: 13px;
-  margin-top: 6px;
+  font-size: 0.8125rem;
+  margin-top: 0.375rem;
   display: block;
   font-weight: 500;
 }
@@ -555,18 +555,18 @@ export default {
 .folder-path-display {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
+  gap: 0.625rem;
+  padding: 0.75rem 0.875rem;
   background: #f3f4f6;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
+  border: 0.125rem solid #e5e7eb;
+  border-radius: 0.5rem;
   font-family: 'Monaco', 'Courier New', monospace;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #374151;
 }
 
 .path-icon {
-  font-size: 18px;
+  font-size: 1.125rem;
 }
 
 .path-text {
@@ -576,8 +576,8 @@ export default {
 }
 
 .help-text {
-  margin-top: 8px;
-  font-size: 13px;
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
   color: #6b7280;
   line-height: 1.5;
 }
@@ -585,8 +585,8 @@ export default {
 .modal-footer {
   display: flex;
   justify-content: center;
-  padding: 20px 24px;
-  border-top: 1px solid #e5e7eb;
+  padding: 1.25rem 1.5rem;
+  border-top: 0.0625rem solid #e5e7eb;
   background: #f9fafb;
 }
 
@@ -594,21 +594,21 @@ export default {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
-  padding: 12px 32px;
-  border-radius: 8px;
+  padding: 0.75rem 2rem;
+  border-radius: 0.5rem;
   cursor: pointer;
   font-weight: 600;
-  font-size: 15px;
+  font-size: 0.9375rem;
   transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 0.125rem 0.5rem rgba(102, 126, 234, 0.3);
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 .modal-footer .btn-primary:hover:not(:disabled) {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+  transform: translateY(-0.125rem);
+  box-shadow: 0 0.25rem 0.75rem rgba(102, 126, 234, 0.4);
 }
 
 .modal-footer .btn-primary:active:not(:disabled) {
@@ -638,13 +638,13 @@ export default {
 }
 
 .spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #007bff;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 0.25rem solid #f3f3f3;
+  border-top: 0.25rem solid #007bff;
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin-bottom: 10px;
+  margin-bottom: 0.625rem;
 }
 
 @keyframes spin {

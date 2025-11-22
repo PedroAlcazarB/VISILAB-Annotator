@@ -218,10 +218,10 @@ const handleRegister = async () => {
 
 .auth-panel {
   background: white;
-  border-radius: 12px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  border-radius: 0.75rem;
+  box-shadow: 0 1.25rem 3.75rem rgba(0, 0, 0, 0.3);
   display: flex;
-  max-width: 900px;
+  max-width: 56.25rem;
   width: 100%;
   overflow: hidden;
 }
@@ -279,7 +279,7 @@ const handleRegister = async () => {
   display: flex;
   gap: 0;
   margin-bottom: 2rem;
-  border-bottom: 2px solid #e1e5e9;
+  border-bottom: 0.125rem solid #e1e5e9;
 }
 
 .tab {
@@ -292,8 +292,8 @@ const handleRegister = async () => {
   color: #5a6c7d;
   cursor: pointer;
   transition: all 0.3s;
-  border-bottom: 3px solid transparent;
-  margin-bottom: -2px;
+  border-bottom: 0.1875rem solid transparent;
+  margin-bottom: -0.125rem;
 }
 
 .tab:hover {
@@ -313,10 +313,10 @@ const handleRegister = async () => {
 
 .error-message {
   background: #fee;
-  border: 1px solid #fcc;
+  border: 0.0625rem solid #fcc;
   color: #c33;
   padding: 0.75rem;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   font-size: 0.9rem;
 }
 
@@ -339,8 +339,8 @@ const handleRegister = async () => {
 
 .form-group input {
   padding: 0.75rem;
-  border: 2px solid #e1e5e9;
-  border-radius: 6px;
+  border: 0.125rem solid #e1e5e9;
+  border-radius: 0.375rem;
   font-size: 1rem;
   transition: border-color 0.3s;
 }
@@ -355,7 +355,7 @@ const handleRegister = async () => {
   background: #667eea;
   color: white;
   border: none;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
@@ -373,7 +373,7 @@ const handleRegister = async () => {
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 48em) {
   .auth-panel {
     flex-direction: column;
   }

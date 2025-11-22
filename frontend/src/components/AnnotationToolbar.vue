@@ -208,10 +208,10 @@ onMounted(() => {
 <style scoped>
 .annotation-toolbar {
   background: #fff;
-  border-radius: 8px;
+  border-radius: 0.5rem;
   padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-  border: 1px solid #e5e7eb;
+  box-shadow: 0 0.125rem 0.5rem rgba(0,0,0,0.1);
+  border: 0.0625rem solid #e5e7eb;
 }
 
 .toolbar-title {
@@ -234,14 +234,14 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   padding: 0.75rem 0.5rem;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
+  border: 0.125rem solid #e5e7eb;
+  border-radius: 0.5rem;
   background: #fff;
   cursor: pointer;
   transition: all 0.2s ease;
   color: #6b7280;
   font-size: 0.8rem;
-  min-height: 70px;
+  min-height: 4.375rem;
 }
 
 .tool-btn:hover {
@@ -268,7 +268,7 @@ onMounted(() => {
 
 .tool-settings {
   background: #f8fafc;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   padding: 1rem;
   margin-bottom: 1.5rem;
 }
@@ -284,8 +284,8 @@ onMounted(() => {
   margin-bottom: 1rem;
   padding: 0.75rem;
   background: #e0f2fe;
-  border-radius: 4px;
-  border-left: 3px solid #0288d1;
+  border-radius: 0.25rem;
+  border-left: 0.1875rem solid #0288d1;
 }
 
 .instruction small {
@@ -314,8 +314,8 @@ onMounted(() => {
 
 .range-input {
   width: 100%;
-  height: 4px;
-  border-radius: 2px;
+  height: 0.25rem;
+  border-radius: 0.125rem;
   background: #e5e7eb;
   outline: none;
   opacity: 0.7;
@@ -328,8 +328,8 @@ onMounted(() => {
 
 .range-input::-webkit-slider-thumb {
   appearance: none;
-  width: 16px;
-  height: 16px;
+  width: 1rem;
+  height: 1rem;
   border-radius: 50%;
   background: #3b82f6;
   cursor: pointer;
@@ -337,9 +337,9 @@ onMounted(() => {
 
 .color-input {
   width: 100%;
-  height: 32px;
-  border: 1px solid #e5e7eb;
-  border-radius: 4px;
+  height: 2rem;
+  border: 0.0625rem solid #e5e7eb;
+  border-radius: 0.25rem;
   cursor: pointer;
 }
 
@@ -353,8 +353,8 @@ onMounted(() => {
 }
 
 .settings-group input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
+  width: 1rem;
+  height: 1rem;
 }
 
 .quick-actions {
@@ -369,14 +369,14 @@ onMounted(() => {
   flex-direction: column;
   align-items: center;
   padding: 0.5rem;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
+  border: 0.0625rem solid #e5e7eb;
+  border-radius: 0.375rem;
   background: #fff;
   cursor: pointer;
   transition: all 0.2s ease;
   color: #6b7280;
   font-size: 0.7rem;
-  min-height: 50px;
+  min-height: 3.125rem;
 }
 
 .action-btn:hover:not(:disabled) {

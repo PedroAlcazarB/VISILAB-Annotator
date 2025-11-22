@@ -1709,8 +1709,8 @@ defineExpose({
 }
 
 .annotation-stage {
-  border-radius: 4px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  border-radius: 0.25rem;
+  box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,0.15);
   user-select: none; /* Prevenir selección de texto durante el arrastre */
   -webkit-user-select: none;
   -moz-user-select: none;
@@ -1729,11 +1729,11 @@ defineExpose({
   justify-content: center;
   background: #f4f6fb;
   color: #2c3e50;
-  border-radius: 10px;
+  border-radius: 0.625rem;
   padding: 1.2rem 2rem;
   margin: 2rem auto;
-  box-shadow: 0 4px 16px rgba(44,62,80,0.07);
-  max-width: 480px;
+  box-shadow: 0 0.25rem 1rem rgba(44,62,80,0.07);
+  max-width: 30rem;
   font-size: 1rem;
   gap: 1.2rem;
 }

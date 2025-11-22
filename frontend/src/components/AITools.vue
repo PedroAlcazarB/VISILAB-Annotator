@@ -480,21 +480,21 @@ export default {
 <style scoped>
 .ai-tools {
   background: white;
-  border-radius: 8px;
-  border: 1px solid #e0e0e0;
+  border-radius: 0.5rem;
+  border: 0.0625rem solid #e0e0e0;
   overflow: hidden;
 }
 
 .ai-tools h3 {
   background: #f8f9fa;
   margin: 0;
-  padding: 15px 20px;
-  border-bottom: 1px solid #e0e0e0;
+  padding: 0.9375rem 1.25rem;
+  border-bottom: 0.0625rem solid #e0e0e0;
   color: #495057;
   font-size: 1.1rem;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 .ai-tools h3 i {
@@ -502,8 +502,8 @@ export default {
 }
 
 .ai-section {
-  padding: 20px;
-  border-bottom: 1px solid #f0f0f0;
+  padding: 1.25rem;
+  border-bottom: 0.0625rem solid #f0f0f0;
 }
 
 .ai-section:last-child {
@@ -511,7 +511,7 @@ export default {
 }
 
 .ai-section h4 {
-  margin: 0 0 15px 0;
+  margin: 0 0 0.9375rem 0;
   color: #343a40;
   font-size: 0.95rem;
   font-weight: 600;
@@ -520,18 +520,18 @@ export default {
 .loading-indicator {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 15px;
+  gap: 0.625rem;
+  padding: 0.9375rem;
   background: #f8f9fa;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   color: #6c757d;
   font-size: 0.9rem;
 }
 
 .models-accordion {
-  margin-bottom: 12px;
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
+  margin-bottom: 0.75rem;
+  border: 0.0625rem solid #dee2e6;
+  border-radius: 0.375rem;
   overflow: hidden;
   background: white;
 }
@@ -540,7 +540,7 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 15px;
+  padding: 0.75rem 0.9375rem;
   background: #f8f9fa;
   cursor: pointer;
   transition: background 0.2s;
@@ -554,7 +554,7 @@ export default {
 .accordion-title {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
   font-size: 0.9rem;
   color: #495057;
 }
@@ -588,16 +588,16 @@ export default {
 }
 
 .accordion-content {
-  padding: 12px;
+  padding: 0.75rem;
   background: white;
-  border-top: 1px solid #e9ecef;
+  border-top: 0.0625rem solid #e9ecef;
   animation: slideDown 0.3s ease;
 }
 
 @keyframes slideDown {
   from {
     opacity: 0;
-    transform: translateY(-10px);
+    transform: translateY(-0.625rem);
   }
   to {
     opacity: 1;
@@ -608,30 +608,30 @@ export default {
 .models-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 .model-item {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 12px;
+  padding: 0.625rem 0.75rem;
   background: #f8f9fa;
-  border: 1px solid #e9ecef;
-  border-radius: 4px;
+  border: 0.0625rem solid #e9ecef;
+  border-radius: 0.25rem;
   transition: all 0.2s;
 }
 
 .model-item:hover {
   background: #e9ecef;
   border-color: #dee2e6;
-  transform: translateX(2px);
+  transform: translateX(0.125rem);
 }
 
 .model-item.active {
   background: #d4edda;
   border-color: #c3e6cb;
-  box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.1);
+  box-shadow: 0 0 0 0.125rem rgba(40, 167, 69, 0.1);
 }
 
 .model-item.loading {
@@ -642,13 +642,13 @@ export default {
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0.25rem;
 }
 
 .model-name {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
   font-size: 0.9rem;
   color: #495057;
 }
@@ -668,10 +668,10 @@ export default {
 }
 
 .btn-load {
-  width: 36px;
-  height: 36px;
-  border-radius: 6px;
-  border: 1px solid #dee2e6;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 0.375rem;
+  border: 0.0625rem solid #dee2e6;
   background: white;
   color: #495057;
   cursor: pointer;
@@ -701,13 +701,13 @@ export default {
 
 .no-models {
   text-align: center;
-  padding: 30px 20px;
+  padding: 1.875rem 1.25rem;
   color: #6c757d;
 }
 
 .no-models i {
   font-size: 2.5rem;
-  margin-bottom: 10px;
+  margin-bottom: 0.625rem;
   opacity: 0.3;
 }
 
@@ -719,41 +719,41 @@ export default {
 .models-hint {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  padding: 12px;
+  gap: 0.5rem;
+  padding: 0.75rem;
   background: #e7f3ff;
-  border: 1px solid #b3d9ff;
-  border-radius: 6px;
+  border: 0.0625rem solid #b3d9ff;
+  border-radius: 0.375rem;
   font-size: 0.85rem;
   color: #004085;
-  margin-top: 15px;
+  margin-top: 0.9375rem;
 }
 
 .models-hint i {
-  margin-top: 2px;
+  margin-top: 0.125rem;
   flex-shrink: 0;
 }
 
 .model-status {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px;
-  border-radius: 4px;
-  margin-top: 15px;
+  gap: 0.625rem;
+  padding: 0.625rem;
+  border-radius: 0.25rem;
+  margin-top: 0.9375rem;
   font-size: 0.9rem;
 }
 
 .model-status.loaded {
   background-color: #d4edda;
   color: #155724;
-  border: 1px solid #c3e6cb;
+  border: 0.0625rem solid #c3e6cb;
 }
 
 .model-status.error {
   background-color: #f8d7da;
   color: #721c24;
-  border: 1px solid #f5c6cb;
+  border: 0.0625rem solid #f5c6cb;
 }
 
 .status-info {
@@ -763,7 +763,7 @@ export default {
 }
 
 .status-info strong {
-  margin-bottom: 2px;
+  margin-bottom: 0.125rem;
 }
 
 .status-info span {
@@ -772,25 +772,25 @@ export default {
 }
 
 .form-group {
-  margin-bottom: 15px;
+  margin-bottom: 0.9375rem;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 5px;
+  margin-bottom: 0.3125rem;
   font-weight: 500;
   color: #495057;
   font-size: 0.9rem;
 }
 
 .form-group label i {
-  margin-left: 5px;
+  margin-left: 0.3125rem;
   color: #6c757d;
   cursor: help;
 }
 
 .confidence-guide {
-  margin-top: 5px;
+  margin-top: 0.3125rem;
   text-align: center;
 }
 
@@ -801,9 +801,9 @@ export default {
 
 .form-control {
   width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ced4da;
-  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  border: 0.0625rem solid #ced4da;
+  border-radius: 0.25rem;
   font-size: 0.9rem;
   transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
 }
@@ -821,20 +821,20 @@ export default {
 
 .range-input {
   padding: 0;
-  height: 30px;
+  height: 1.875rem;
 }
 
 .btn {
-  padding: 8px 16px;
+  padding: 0.5rem 1rem;
   border: none;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.15s ease-in-out;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
   text-decoration: none;
 }
 
@@ -855,7 +855,7 @@ export default {
 .btn-outline {
   background-color: transparent;
   color: #6c757d;
-  border: 1px solid #6c757d;
+  border: 0.0625rem solid #6c757d;
 }
 
 .btn-outline:hover:not(:disabled) {
@@ -864,36 +864,36 @@ export default {
 }
 
 .btn-sm {
-  padding: 4px 8px;
+  padding: 0.25rem 0.5rem;
   font-size: 0.8rem;
 }
 
 .categories-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  max-height: 150px;
+  gap: 0.5rem;
+  max-height: 9.375rem;
   overflow-y: auto;
 }
 
 .category-item {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 6px 10px;
+  gap: 0.625rem;
+  padding: 0.375rem 0.625rem;
   background-color: #f8f9fa;
-  border-radius: 4px;
-  border: 1px solid #e9ecef;
+  border-radius: 0.25rem;
+  border: 0.0625rem solid #e9ecef;
 }
 
 .category-index {
   background-color: #6c757d;
   color: white;
-  padding: 2px 6px;
-  border-radius: 12px;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.75rem;
   font-size: 0.8rem;
   font-weight: 500;
-  min-width: 24px;
+  min-width: 1.5rem;
   text-align: center;
 }
 
@@ -903,15 +903,15 @@ export default {
 }
 
 .prediction-results {
-  margin-top: 15px;
-  padding: 12px;
+  margin-top: 0.9375rem;
+  padding: 0.75rem;
   background-color: #f8f9fa;
-  border-radius: 4px;
-  border: 1px solid #e9ecef;
+  border-radius: 0.25rem;
+  border: 0.0625rem solid #e9ecef;
 }
 
 .prediction-results h5 {
-  margin: 0 0 10px 0;
+  margin: 0 0 0.625rem 0;
   color: #495057;
   font-size: 0.9rem;
 }
@@ -919,17 +919,17 @@ export default {
 .detections-summary {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 0.375rem;
 }
 
 .detection-item {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 4px 8px;
+  padding: 0.25rem 0.5rem;
   background-color: white;
-  border-radius: 3px;
-  border: 1px solid #dee2e6;
+  border-radius: 0.1875rem;
+  border: 0.0625rem solid #dee2e6;
   font-size: 0.85rem;
 }
 
@@ -948,13 +948,13 @@ export default {
   color: #6c757d;
   font-style: italic;
   font-size: 0.8rem;
-  padding: 4px;
+  padding: 0.25rem;
 }
 
 .navigation-controls {
   display: flex;
-  gap: 10px;
-  margin-bottom: 10px;
+  gap: 0.625rem;
+  margin-bottom: 0.625rem;
 }
 
 .navigation-controls .btn {
@@ -963,13 +963,13 @@ export default {
 }
 
 .auto-predict {
-  margin-top: 10px;
+  margin-top: 0.625rem;
 }
 
 .auto-predict label {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
   font-size: 0.9rem;
   color: #495057;
   cursor: pointer;
@@ -982,18 +982,18 @@ export default {
 
 /* Estilos para la sección de ayuda */
 .help-section {
-  border: 2px solid #e3f2fd;
-  border-radius: 8px;
+  border: 0.125rem solid #e3f2fd;
+  border-radius: 0.5rem;
   background: linear-gradient(135deg, #f8f9ff 0%, #e3f2fd 100%);
-  margin-top: 15px;
+  margin-top: 0.9375rem;
 }
 
 .help-section h4 {
   color: #1976d2;
-  margin-bottom: 12px;
+  margin-bottom: 0.75rem;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 .help-content {
@@ -1001,7 +1001,7 @@ export default {
 }
 
 .help-content p {
-  margin: 0 0 10px 0;
+  margin: 0 0 0.625rem 0;
   color: #424242;
   font-weight: 500;
 }
@@ -1009,36 +1009,36 @@ export default {
 .help-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin: 8px 0;
-  padding: 6px 8px;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+  padding: 0.375rem 0.5rem;
   background: rgba(255, 255, 255, 0.7);
-  border-radius: 4px;
+  border-radius: 0.25rem;
   color: #424242;
 }
 
 .help-item i {
-  width: 16px;
+  width: 1rem;
   text-align: center;
 }
 
 .help-item strong {
-  min-width: 60px;
+  min-width: 3.75rem;
 }
 
 .help-note {
-  margin-top: 12px;
-  padding: 8px;
+  margin-top: 0.75rem;
+  padding: 0.5rem;
   background: rgba(25, 118, 210, 0.1);
-  border-radius: 4px;
+  border-radius: 0.25rem;
   display: flex;
   align-items: flex-start;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 .help-note i {
   color: #1976d2;
-  margin-top: 2px;
+  margin-top: 0.125rem;
 }
 
 .help-note small {
@@ -1056,7 +1056,7 @@ export default {
 
 /* Estilos para el separador */
 .separator {
-  margin: 15px 0;
+  margin: 0.9375rem 0;
   text-align: center;
   position: relative;
 }
@@ -1067,13 +1067,13 @@ export default {
   top: 50%;
   left: 0;
   right: 0;
-  height: 1px;
+  height: 0.0625rem;
   background: #dee2e6;
 }
 
 .separator span {
   background: white;
-  padding: 0 10px;
+  padding: 0 0.625rem;
   color: #6c757d;
   font-size: 0.85rem;
   position: relative;

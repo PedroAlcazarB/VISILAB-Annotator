@@ -373,13 +373,13 @@ const processVideo = async () => {
 }
 
 .upload-area {
-  border: 2px dashed #ccc;
-  border-radius: 8px;
+  border: 0.125rem dashed #ccc;
+  border-radius: 0.5rem;
   padding: 2rem;
   text-align: center;
   cursor: pointer;
   transition: all 0.3s;
-  min-height: 200px;
+  min-height: 12.5rem;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -400,7 +400,7 @@ const processVideo = async () => {
 .preview-container {
   position: relative;
   max-width: 100%;
-  max-height: 400px;
+  max-height: 25rem;
 }
 
 .image-wrapper {
@@ -416,7 +416,7 @@ const processVideo = async () => {
   background: rgba(0, 0, 0, 0.7);
   color: white;
   padding: 0.5rem 1rem;
-  border-radius: 20px;
+  border-radius: 1.25rem;
   font-size: 0.9rem;
   font-weight: 500;
   opacity: 0;
@@ -430,7 +430,7 @@ const processVideo = async () => {
 
 .preview-image, .preview-video {
   max-width: 100%;
-  max-height: 400px;
+  max-height: 25rem;
   display: block;
   margin: 0 auto;
 }
@@ -438,36 +438,36 @@ const processVideo = async () => {
 .clickable-image {
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
-  border-radius: 4px;
+  border-radius: 0.25rem;
 }
 
 .clickable-image:hover {
   transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,0.15);
 }
 
 .clear-btn {
   position: absolute;
-  top: -10px;
-  right: -10px;
+  top: -0.625rem;
+  right: -0.625rem;
   background: #ff4444;
   color: white;
   border: none;
   border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  font-size: 14px;
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.875rem;
   cursor: pointer;
 }
 
 .change-file-btn {
   position: absolute;
-  bottom: 10px;
-  right: 10px;
+  bottom: 0.625rem;
+  right: 0.625rem;
   background: #42b983;
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   padding: 0.5rem 1rem;
   font-size: 0.9rem;
   cursor: pointer;
@@ -497,10 +497,10 @@ const processVideo = async () => {
 }
 
 .spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #42b983;
+  width: 2rem;
+  height: 2rem;
+  border: 0.1875rem solid #f3f3f3;
+  border-top: 0.1875rem solid #42b983;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -518,16 +518,16 @@ const processVideo = async () => {
 
 .progress-bar-wrapper {
   width: 100%;
-  max-width: 320px;
+  max-width: 20rem;
   margin-top: 0.5rem;
 }
 .progress-bar {
   width: 100%;
-  height: 16px;
+  height: 1rem;
   background: #eee;
-  border-radius: 8px;
+  border-radius: 0.5rem;
   overflow: hidden;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  box-shadow: 0 0.0625rem 0.25rem rgba(0,0,0,0.08);
 }
 .progress-bar-fill {
   height: 100%;
@@ -539,7 +539,7 @@ const processVideo = async () => {
   font-size: 0.95rem;
   color: #42b983;
   font-weight: 600;
-  margin-top: 2px;
+  margin-top: 0.125rem;
 }
 
 /* Estilos para mensajes de error */
@@ -547,8 +547,8 @@ const processVideo = async () => {
   margin-top: 1rem;
   padding: 0.75rem;
   background: #fee;
-  border: 1px solid #fcc;
-  border-radius: 4px;
+  border: 0.0625rem solid #fcc;
+  border-radius: 0.25rem;
   color: #c33;
   font-size: 0.9rem;
   display: flex;
@@ -563,8 +563,8 @@ const processVideo = async () => {
   font-size: 1.2rem;
   cursor: pointer;
   padding: 0;
-  width: 20px;
-  height: 20px;
+  width: 1.25rem;
+  height: 1.25rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -591,10 +591,10 @@ const processVideo = async () => {
 
 .modal-video {
   background: white;
-  border-radius: 8px;
+  border-radius: 0.5rem;
   width: 90%;
-  max-width: 600px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  max-width: 37.5rem;
+  box-shadow: 0 0.25rem 1.25rem rgba(0, 0, 0, 0.15);
 }
 
 .modal-header {
@@ -602,7 +602,7 @@ const processVideo = async () => {
   justify-content: space-between;
   align-items: center;
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 0.0625rem solid #e5e7eb;
 }
 
 .modal-header h2 {
@@ -618,8 +618,8 @@ const processVideo = async () => {
   font-size: 1.75rem;
   cursor: pointer;
   color: #6c757d;
-  width: 32px;
-  height: 32px;
+  width: 2rem;
+  height: 2rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -646,7 +646,7 @@ const processVideo = async () => {
   font-size: 0.9rem;
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 0.0625rem solid #e5e7eb;
 }
 
 .form-section {
@@ -669,8 +669,8 @@ const processVideo = async () => {
 
 .fps-option {
   background: white;
-  border: 2px solid #dee2e6;
-  border-radius: 6px;
+  border: 0.125rem solid #dee2e6;
+  border-radius: 0.375rem;
   padding: 0.875rem 1rem;
   cursor: pointer;
   transition: all 0.2s;
@@ -703,8 +703,8 @@ const processVideo = async () => {
 
 .info-box {
   background: #f8f9fa;
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
+  border: 0.0625rem solid #dee2e6;
+  border-radius: 0.375rem;
   padding: 0.875rem;
 }
 
@@ -719,7 +719,7 @@ const processVideo = async () => {
   justify-content: flex-end;
   gap: 0.75rem;
   padding: 1rem 1.5rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 0.0625rem solid #e5e7eb;
   background: #f8f9fa;
 }
 
@@ -727,7 +727,7 @@ const processVideo = async () => {
 .btn-extract {
   padding: 0.625rem 1.25rem;
   border: none;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
