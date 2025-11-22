@@ -1,14 +1,9 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import { createRouter, createWebHistory } from 'vue-router'
 import App from './App.vue'
 import VueKonva from 'vue-konva'
 import { apiGet, apiPost, apiPut, apiDelete, apiFetch, apiPatch, API_BASE_URL } from './utils/api'
 import { useAuthStore } from './stores/authStore'
-
-import HomeView from './views/HomeView.vue'
-import ProjectView from './views/ProjectView.vue'
-import CategoriesView from './views/CategoriesView.vue'
 
 const app = createApp(App)
 app.use(VueKonva)
@@ -79,17 +74,5 @@ window.$apiPut = apiPut
 window.$apiDelete = apiDelete
 window.apiFetch = apiFetch
 window.$apiPatch = apiPatch
-
-// Configuración del router
-const router = createRouter({
-  history: createWebHistory(),
-  routes: [
-    { path: '/', component: HomeView },
-    { path: '/projects', component: ProjectView },
-    { path: '/projects/:id', component: ProjectView },
-    { path: '/categories', component: CategoriesView }
-  ]
-})
-app.use(router)
 
 app.mount('#app')

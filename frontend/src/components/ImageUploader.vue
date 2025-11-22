@@ -24,24 +24,6 @@
         <p>Arrastra archivos aquí o haz clic para seleccionar</p>
         <p class="help-text">Admite imágenes, vídeos o ZIP con contenido</p>
       </div>
-      
-      <!-- Preview de imagen -->
-      <div v-else class="preview-container">
-        <div class="image-wrapper">
-          <img v-if="isImage" :src="displayUrl" alt="Preview" class="preview-image clickable-image" 
-               @click="handleImageClick" title="Haz clic para anotar">
-          <div class="click-overlay">
-            <span class="click-text">🖱️ Clic para anotar</span>
-          </div>
-        </div>
-        <video v-if="!isImage" controls class="preview-video">
-          <source :src="displayUrl" :type="fileType">
-        </video>
-        <button v-if="!props.currentImage" @click.stop="clearFile" class="clear-btn">×</button>
-        <button @click.stop="triggerFileInput" class="change-file-btn" :disabled="uploading">
-          {{ props.currentImage ? '+ Añadir más' : 'Cambiar imagen' }}
-        </button>
-      </div>
     </div>
     
     <!-- Mostrar errores del store -->
@@ -163,7 +145,7 @@ const displayUrl = computed(() => {
     return `data:${props.currentImage.content_type};base64,${props.currentImage.data}`
   }
   if (props.currentImage?._id) {
-    return `http://localhost:5000/api/images/${props.currentImage._id}/data`
+    return `/api/images/${props.currentImage._id}/data`
   }
   return previewUrl.value
 })
@@ -267,10 +249,10 @@ const uploadFiles = async (fileList) => {
     for (const file of fileList) {
       if (file.type === 'application/zip' || file.name.toLowerCase().endsWith('.zip')) {
         uploadMessage.value = `Descomprimiendo y procesando ${file.name}...`
-        await uploadFileWithProgress(file, 'http://localhost:5000/api/datasets/import-images', 'file', props.datasetId, uploadedImages)
+        await uploadFileWithProgress(file, '/api/datasets/import-images', 'file', props.datasetId, uploadedImages)
       } else if (file.type.startsWith('video/')) {
         uploadMessage.value = `Subiendo video ${file.name}...`
-        const result = await uploadFileWithProgress(file, 'http://localhost:5000/api/images', 'image', props.datasetId, uploadedImages)
+        const result = await uploadFileWithProgress(file, '/api/images', 'image', props.datasetId, uploadedImages)
         
         if (result && result.video && result.requires_processing) {
           uploading.value = false
@@ -280,7 +262,7 @@ const uploadFiles = async (fileList) => {
         }
       } else if (file.type.startsWith('image/')) {
         uploadMessage.value = `Subiendo ${file.name}...`
-        await uploadFileWithProgress(file, 'http://localhost:5000/api/images', 'image', props.datasetId, uploadedImages)
+        await uploadFileWithProgress(file, '/api/images', 'image', props.datasetId, uploadedImages)
         if (uploadedImages.length === 1) {
           files.value = [file]
           loadPreview(file)
@@ -318,7 +300,7 @@ const closeVideoModal = async () => {
   if (pendingVideo.value?._id) {
     try {
       const token = localStorage.getItem('auth_token')
-      await fetch(`http://localhost:5000/api/videos/${pendingVideo.value._id}`, {
+      await fetch(`/api/videos/${pendingVideo.value._id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`
@@ -349,7 +331,7 @@ const processVideo = async () => {
     uploadMessage.value = `Extrayendo frames del video (${estimatedFrames.value} frames estimados)...`
     
     const token = localStorage.getItem('auth_token')
-    const response = await fetch('http://localhost:5000/api/videos/process', {
+    const response = await fetch('/api/videos/process', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -391,13 +373,13 @@ const processVideo = async () => {
 }
 
 .upload-area {
-  border: 2px dashed #ccc;
-  border-radius: 8px;
+  border: 0.125rem dashed #ccc;
+  border-radius: 0.5rem;
   padding: 2rem;
   text-align: center;
   cursor: pointer;
   transition: all 0.3s;
-  min-height: 200px;
+  min-height: 12.5rem;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -418,7 +400,7 @@ const processVideo = async () => {
 .preview-container {
   position: relative;
   max-width: 100%;
-  max-height: 400px;
+  max-height: 25rem;
 }
 
 .image-wrapper {
@@ -434,7 +416,7 @@ const processVideo = async () => {
   background: rgba(0, 0, 0, 0.7);
   color: white;
   padding: 0.5rem 1rem;
-  border-radius: 20px;
+  border-radius: 1.25rem;
   font-size: 0.9rem;
   font-weight: 500;
   opacity: 0;
@@ -448,7 +430,7 @@ const processVideo = async () => {
 
 .preview-image, .preview-video {
   max-width: 100%;
-  max-height: 400px;
+  max-height: 25rem;
   display: block;
   margin: 0 auto;
 }
@@ -456,36 +438,36 @@ const processVideo = async () => {
 .clickable-image {
   cursor: pointer;
   transition: transform 0.2s, box-shadow 0.2s;
-  border-radius: 4px;
+  border-radius: 0.25rem;
 }
 
 .clickable-image:hover {
   transform: scale(1.02);
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,0.15);
 }
 
 .clear-btn {
   position: absolute;
-  top: -10px;
-  right: -10px;
+  top: -0.625rem;
+  right: -0.625rem;
   background: #ff4444;
   color: white;
   border: none;
   border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  font-size: 14px;
+  width: 1.5rem;
+  height: 1.5rem;
+  font-size: 0.875rem;
   cursor: pointer;
 }
 
 .change-file-btn {
   position: absolute;
-  bottom: 10px;
-  right: 10px;
+  bottom: 0.625rem;
+  right: 0.625rem;
   background: #42b983;
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   padding: 0.5rem 1rem;
   font-size: 0.9rem;
   cursor: pointer;
@@ -515,10 +497,10 @@ const processVideo = async () => {
 }
 
 .spinner {
-  width: 32px;
-  height: 32px;
-  border: 3px solid #f3f3f3;
-  border-top: 3px solid #42b983;
+  width: 2rem;
+  height: 2rem;
+  border: 0.1875rem solid #f3f3f3;
+  border-top: 0.1875rem solid #42b983;
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
@@ -536,16 +518,16 @@ const processVideo = async () => {
 
 .progress-bar-wrapper {
   width: 100%;
-  max-width: 320px;
+  max-width: 20rem;
   margin-top: 0.5rem;
 }
 .progress-bar {
   width: 100%;
-  height: 16px;
+  height: 1rem;
   background: #eee;
-  border-radius: 8px;
+  border-radius: 0.5rem;
   overflow: hidden;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  box-shadow: 0 0.0625rem 0.25rem rgba(0,0,0,0.08);
 }
 .progress-bar-fill {
   height: 100%;
@@ -557,7 +539,7 @@ const processVideo = async () => {
   font-size: 0.95rem;
   color: #42b983;
   font-weight: 600;
-  margin-top: 2px;
+  margin-top: 0.125rem;
 }
 
 /* Estilos para mensajes de error */
@@ -565,8 +547,8 @@ const processVideo = async () => {
   margin-top: 1rem;
   padding: 0.75rem;
   background: #fee;
-  border: 1px solid #fcc;
-  border-radius: 4px;
+  border: 0.0625rem solid #fcc;
+  border-radius: 0.25rem;
   color: #c33;
   font-size: 0.9rem;
   display: flex;
@@ -581,8 +563,8 @@ const processVideo = async () => {
   font-size: 1.2rem;
   cursor: pointer;
   padding: 0;
-  width: 20px;
-  height: 20px;
+  width: 1.25rem;
+  height: 1.25rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -609,10 +591,10 @@ const processVideo = async () => {
 
 .modal-video {
   background: white;
-  border-radius: 8px;
+  border-radius: 0.5rem;
   width: 90%;
-  max-width: 600px;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  max-width: 37.5rem;
+  box-shadow: 0 0.25rem 1.25rem rgba(0, 0, 0, 0.15);
 }
 
 .modal-header {
@@ -620,7 +602,7 @@ const processVideo = async () => {
   justify-content: space-between;
   align-items: center;
   padding: 1.25rem 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 0.0625rem solid #e5e7eb;
 }
 
 .modal-header h2 {
@@ -636,8 +618,8 @@ const processVideo = async () => {
   font-size: 1.75rem;
   cursor: pointer;
   color: #6c757d;
-  width: 32px;
-  height: 32px;
+  width: 2rem;
+  height: 2rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -664,7 +646,7 @@ const processVideo = async () => {
   font-size: 0.9rem;
   margin-bottom: 1.5rem;
   padding-bottom: 1rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 0.0625rem solid #e5e7eb;
 }
 
 .form-section {
@@ -687,8 +669,8 @@ const processVideo = async () => {
 
 .fps-option {
   background: white;
-  border: 2px solid #dee2e6;
-  border-radius: 6px;
+  border: 0.125rem solid #dee2e6;
+  border-radius: 0.375rem;
   padding: 0.875rem 1rem;
   cursor: pointer;
   transition: all 0.2s;
@@ -721,8 +703,8 @@ const processVideo = async () => {
 
 .info-box {
   background: #f8f9fa;
-  border: 1px solid #dee2e6;
-  border-radius: 6px;
+  border: 0.0625rem solid #dee2e6;
+  border-radius: 0.375rem;
   padding: 0.875rem;
 }
 
@@ -737,7 +719,7 @@ const processVideo = async () => {
   justify-content: flex-end;
   gap: 0.75rem;
   padding: 1rem 1.5rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 0.0625rem solid #e5e7eb;
   background: #f8f9fa;
 }
 
@@ -745,7 +727,7 @@ const processVideo = async () => {
 .btn-extract {
   padding: 0.625rem 1.25rem;
   border: none;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;

@@ -23,6 +23,9 @@
         
         <div class="welcome-content">
           <h2>Bienvenido a VISILAB Annotator</h2>
+          <p class="welcome-user">
+            Hola, <strong>{{ authStore.user?.username || 'Usuario' }}</strong>!
+          </p>
           <p>Anota imágenes con bounding boxes y exporta en formato COCO.</p>
           <button @click="goToDatasets" class="btn btn-primary">
             Ir al anotador
@@ -190,12 +193,12 @@ export default {
 /* Estilo del header */
 .app-header, .welcome-header {
   background: #ffffff;
-  border-bottom: 1px solid #e1e5e9;
+  border-bottom: 0.0625rem solid #e1e5e9;
   padding: 1rem 2rem;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.1);
   gap: 2rem;
 }
 
@@ -217,7 +220,7 @@ nav {
   text-decoration: none;
   font-weight: 500;
   padding: 0.5rem 1rem;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   transition: all 0.2s;
 }
 
@@ -251,7 +254,7 @@ nav {
   background: #ef4444;
   color: white;
   border: none;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   font-size: 0.9rem;
   font-weight: 500;
   cursor: pointer;
@@ -273,7 +276,7 @@ nav {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  min-height: calc(100vh - 80px);
+  min-height: calc(100vh - 5rem);
   text-align: center;
   color: white;
   padding: 2rem;
@@ -285,11 +288,23 @@ nav {
   font-weight: 700;
 }
 
+.welcome-user {
+  color: #fff;
+  font-size: 1.4rem;
+  margin-bottom: 1rem;
+  font-weight: 500;
+}
+
+.welcome-user strong {
+  color: #fbbf24;
+  font-weight: 700;
+}
+
 .welcome-content p {
   font-size: 1.2rem;
   margin-bottom: 2rem;
   opacity: 0.9;
-  max-width: 600px;
+  max-width: 37.5rem;
 }
 
 /* Estilos para pantallas con header */
@@ -302,7 +317,7 @@ nav {
 .btn {
   padding: 0.75rem 1.5rem;
   border: none;
-  border-radius: 8px;
+  border-radius: 0.5rem;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.2s;
@@ -318,12 +333,12 @@ nav {
 
 .btn-primary:hover {
   background: #0284c7;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+  transform: translateY(-0.0625rem);
+  box-shadow: 0 0.25rem 0.75rem rgba(14, 165, 233, 0.3);
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 48em) {
   .app-header, .welcome-header {
     padding: 1rem;
     flex-direction: column;

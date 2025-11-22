@@ -287,17 +287,17 @@ function closeModal() {
 
 .modal-content {
   background: white;
-  border-radius: 12px;
-  max-width: 800px;
+  border-radius: 0.75rem;
+  max-width: 50rem;
   width: 100%;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 1.25rem 3.75rem rgba(0, 0, 0, 0.3);
 }
 
 .modal-header {
   padding: 1.5rem;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 0.0625rem solid #e5e7eb;
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -316,7 +316,7 @@ function closeModal() {
   color: #6b7280;
   cursor: pointer;
   padding: 0.5rem;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   transition: all 0.2s;
 }
 
@@ -341,14 +341,14 @@ function closeModal() {
 
 .format-options {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(12.5rem, 1fr));
   gap: 1rem;
 }
 
 .format-option {
   cursor: pointer;
-  border: 2px solid #e5e7eb;
-  border-radius: 8px;
+  border: 0.125rem solid #e5e7eb;
+  border-radius: 0.5rem;
   padding: 1rem;
   transition: all 0.2s;
   display: block;
@@ -396,9 +396,9 @@ function closeModal() {
 
 .info-box {
   background: #eff6ff;
-  border-left: 4px solid #3b82f6;
+  border-left: 0.25rem solid #3b82f6;
   padding: 1rem;
-  border-radius: 4px;
+  border-radius: 0.25rem;
 }
 
 .info-box h4 {
@@ -429,7 +429,7 @@ function closeModal() {
 .info-box code {
   background: #dbeafe;
   padding: 0.125rem 0.25rem;
-  border-radius: 2px;
+  border-radius: 0.125rem;
   font-family: monospace;
   font-size: 0.875rem;
 }
@@ -444,8 +444,8 @@ function closeModal() {
 
 .upload-note {
   background: #f0f9ff;
-  border: 1px solid #bae6fd;
-  border-radius: 6px;
+  border: 0.0625rem solid #bae6fd;
+  border-radius: 0.375rem;
   padding: 1rem;
   margin-top: 1rem;
   display: flex;
@@ -477,8 +477,8 @@ function closeModal() {
 }
 
 .upload-content {
-  border: 2px dashed #d1d5db;
-  border-radius: 8px;
+  border: 0.125rem dashed #d1d5db;
+  border-radius: 0.5rem;
   padding: 2rem;
   text-align: center;
   transition: all 0.2s;
@@ -525,9 +525,9 @@ function closeModal() {
 }
 
 .progress-bar {
-  height: 8px;
+  height: 0.5rem;
   background: #e5e7eb;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   overflow: hidden;
   margin-bottom: 0.5rem;
 }
@@ -546,7 +546,7 @@ function closeModal() {
 
 .import-result {
   padding: 1rem;
-  border-radius: 8px;
+  border-radius: 0.5rem;
   margin-top: 1rem;
   display: flex;
   gap: 1rem;
@@ -555,12 +555,12 @@ function closeModal() {
 
 .import-result.success {
   background: #ecfdf5;
-  border: 1px solid #10b981;
+  border: 0.0625rem solid #10b981;
 }
 
 .import-result.error {
   background: #fef2f2;
-  border: 1px solid #ef4444;
+  border: 0.0625rem solid #ef4444;
 }
 
 .import-result i {
@@ -621,7 +621,7 @@ function closeModal() {
 
 .modal-footer {
   padding: 1rem 1.5rem;
-  border-top: 1px solid #e5e7eb;
+  border-top: 0.0625rem solid #e5e7eb;
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
@@ -629,7 +629,7 @@ function closeModal() {
 
 .btn {
   padding: 0.5rem 1rem;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;

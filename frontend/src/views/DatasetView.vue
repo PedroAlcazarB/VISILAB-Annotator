@@ -86,6 +86,7 @@
             <i class="fas fa-file"></i>
             <p>No se encontraron archivos en el dataset</p>
             <button @click="showUploadModal = true" class="btn btn-primary">
+              <i class="fas fa-upload"></i>
               Subir archivos
             </button>
           </div>
@@ -693,6 +694,30 @@ export default {
         if (imageInList) {
           imageInList.annotation_count = updatedCount
         }
+        
+        // Si la imagen es un frame de un video, actualizar el contador del frame y del video
+        if (this.selectedVideo) {
+          // Actualizar el frame actual en la lista de videoFrames
+          const frameInList = this.videoFrames.find(f => (f._id || f.id) === currentId)
+          if (frameInList) {
+            frameInList.annotation_count = updatedCount
+          }
+          
+          const videoId = this.selectedVideo._id
+          const videoInList = this.videos.find(v => v._id === videoId)
+          
+          if (videoInList) {
+            // Calcular el total de anotaciones de todos los frames del video
+            const totalVideoAnnotations = this.videoFrames.reduce((total, frame) => {
+              const frameId = frame._id || frame.id
+              const count = frameId === currentId ? updatedCount : (frame.annotation_count || 0)
+              return total + count
+            }, 0)
+            
+            videoInList.annotation_count = totalVideoAnnotations
+            this.selectedVideo.annotation_count = totalVideoAnnotations
+          }
+        }
       }
     },
     
@@ -729,32 +754,6 @@ export default {
 
       try {
         const newAnnotations = Array.isArray(updateData.annotations) ? updateData.annotations : []
-        const canvasRef = this.$refs.annotationsCanvas
-
-        if (
-          this.selectedImage &&
-          newAnnotations.length > 0 &&
-          canvasRef &&
-          typeof canvasRef.getImageMetrics === 'function'
-        ) {
-          const metrics = canvasRef.getImageMetrics()
-          const scaleX = Number(metrics?.scaleX) || 0
-          const scaleY = Number(metrics?.scaleY) || 0
-
-          if (scaleX > 0 && scaleY > 0 && (scaleX !== 1 || scaleY !== 1)) {
-            const updates = newAnnotations
-              .filter(ann => ann && ann._id && Array.isArray(ann.bbox) && ann.bbox.length >= 4)
-              .map(ann => {
-                const [x, y, w, h] = ann.bbox.map(Number)
-                const scaledBBox = [x * scaleX, y * scaleY, w * scaleX, h * scaleY]
-                return this.store.updateAnnotation(ann._id, { bbox: scaledBBox })
-              })
-
-            if (updates.length) {
-              await Promise.allSettled(updates)
-            }
-          }
-        }
 
         if (this.selectedImage) {
           await this.store.loadAnnotations(this.selectedImage._id)
@@ -989,9 +988,9 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 20px;
+  padding: 0.75rem 1.25rem;
   background: #f8f9fa;
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 0.0625rem solid #dee2e6;
 }
 
 .header-left {
@@ -1002,18 +1001,18 @@ export default {
 
 .back-btn {
   background: rgba(255, 255, 255, 0.95);
-  border: 1px solid rgba(108, 117, 125, 0.3);
+  border: 0.0625rem solid rgba(108, 117, 125, 0.3);
   cursor: pointer;
   font-size: 0.85rem;
   color: #495057;
-  padding: 8px 12px;
-  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.375rem;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0.0625rem 0.1875rem rgba(0, 0, 0, 0.1);
   margin-right: 1rem;
   font-weight: 500;
 }
@@ -1031,13 +1030,13 @@ export default {
   background: rgba(52, 152, 219, 0.1);
   border-color: rgba(52, 152, 219, 0.4);
   color: #3498db;
-  transform: translateX(-2px);
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.15);
+  transform: translateX(-0.125rem);
+  box-shadow: 0 0.1875rem 0.5rem rgba(0, 0, 0, 0.15);
 }
 
 .back-btn:active {
-  transform: translateX(-1px);
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transform: translateX(-0.0625rem);
+  box-shadow: 0 0.0625rem 0.1875rem rgba(0, 0, 0, 0.2);
 }
 
 .dataset-info h1 {
@@ -1048,44 +1047,44 @@ export default {
 }
 
 .dataset-info p {
-  margin: 2px 0 0 0;
+  margin: 0.125rem 0 0 0;
   color: #6c757d;
   font-size: 0.85rem;
 }
 
 .header-actions {
   display: flex;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 .header-actions .btn {
-  padding: 8px 14px;
+  padding: 0.5rem 0.875rem;
   border: none;
-  border-radius: 5px;
+  border-radius: 0.3125rem;
   cursor: pointer;
-  font-size: 13px;
+  font-size: 0.8125rem;
   font-weight: 500;
   transition: all 0.3s ease;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
 }
 
 .header-actions .btn i {
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .header-actions .btn-text {
   display: inline;
 }
 
-@media (max-width: 1200px) {
+@media (max-width: 75em) {
   .header-actions .btn-text {
     display: none;
   }
   
   .header-actions .btn {
-    padding: 8px 12px;
+    padding: 0.5rem 0.75rem;
   }
 }
 
@@ -1120,11 +1119,11 @@ export default {
 .btn-secondary {
   background-color: #6c757d;
   color: white;
-  padding: 10px 20px;
+  padding: 0.625rem 1.25rem;
   border: none;
-  border-radius: 5px;
+  border-radius: 0.3125rem;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 500;
   transition: all 0.3s ease;
 }
@@ -1140,21 +1139,21 @@ export default {
 }
 
 .sidebar {
-  width: 250px;
+  width: 15.625rem;
   background: #343a40;
   color: white;
-  padding: 20px;
+  padding: 1.25rem;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 1.25rem;
 }
 
 .action-btn {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 5px;
+  gap: 0.625rem;
+  padding: 0.75rem;
+  border-radius: 0.3125rem;
   cursor: pointer;
   transition: background-color 0.3s ease;
 }
@@ -1164,18 +1163,18 @@ export default {
 }
 
 .stats {
-  margin-top: 20px;
+  margin-top: 1.25rem;
 }
 
 .stat-item {
-  padding: 8px 0;
-  border-bottom: 1px solid #495057;
+  padding: 0.5rem 0;
+  border-bottom: 0.0625rem solid #495057;
   font-size: 0.9rem;
 }
 
 .main-content {
   flex: 1;
-  padding: 15px;
+  padding: 0.9375rem;
   display: flex;
   flex-direction: column;
 }
@@ -1195,22 +1194,22 @@ export default {
 .pagination-container {
   flex-shrink: 0;
   background: white;
-  border-top: 1px solid #dee2e6;
-  padding-top: 10px;
+  border-top: 0.0625rem solid #dee2e6;
+  padding-top: 0.625rem;
 }
 
 .filter-bar {
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 1rem;
   background: #ffffff;
-  border: 1px solid #e9ecef;
-  border-radius: 12px;
-  padding: 12px 16px;
-  margin-bottom: 15px;
+  border: 0.0625rem solid #e9ecef;
+  border-radius: 0.75rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.9375rem;
   color: #495057;
   flex-shrink: 0;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.05);
 }
 
 .filter-label {
@@ -1221,7 +1220,7 @@ export default {
 
 .filter-select-wrapper {
   position: relative;
-  flex: 0 0 260px;
+  flex: 0 0 16.25rem;
 }
 
 .filter-select {
@@ -1229,31 +1228,31 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: 0.75rem;
   background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-  border: 2px solid #e9ecef;
-  border-radius: 10px;
-  padding: 12px 16px;
+  border: 0.125rem solid #e9ecef;
+  border-radius: 0.625rem;
+  padding: 0.75rem 1rem;
   font-size: 0.95rem;
   font-weight: 500;
   color: #495057;
   cursor: pointer;
   transition: all 0.25s ease;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 0.1875rem 0.5rem rgba(0, 0, 0, 0.06);
   background-clip: padding-box;
 }
 
 .filter-select:hover,
 .filter-select.open {
   border-color: #4a90e2;
-  box-shadow: 0 6px 18px rgba(74, 144, 226, 0.18);
-  transform: translateY(-1px);
+  box-shadow: 0 0.375rem 1.125rem rgba(74, 144, 226, 0.18);
+  transform: translateY(-0.0625rem);
 }
 
 .filter-select:focus-visible {
   outline: none;
   border-color: #4a90e2;
-  box-shadow: 0 0 0 4px rgba(74, 144, 226, 0.15), 0 6px 18px rgba(74, 144, 226, 0.18);
+  box-shadow: 0 0 0 0.25rem rgba(74, 144, 226, 0.15), 0 0.375rem 1.125rem rgba(74, 144, 226, 0.18);
 }
 
 .filter-select__value {
@@ -1274,16 +1273,16 @@ export default {
 
 .filter-options {
   position: absolute;
-  top: calc(100% + 10px);
+  top: calc(100% + 0.625rem);
   left: 0;
   right: 0;
   background: #ffffff;
-  border-radius: 12px;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.12);
+  border-radius: 0.75rem;
+  border: 0.0625rem solid #e5e7eb;
+  box-shadow: 0 0.875rem 1.875rem rgba(15, 23, 42, 0.12);
   list-style: none;
   margin: 0;
-  padding: 8px;
+  padding: 0.5rem;
   z-index: 25;
   animation: dropdown-fade 0.18s ease;
 }
@@ -1292,28 +1291,28 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  padding: 10px 14px;
-  border-radius: 8px;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
+  border-radius: 0.5rem;
   color: #4a4a4a;
   cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .filter-option + .filter-option {
-  margin-top: 4px;
+  margin-top: 0.25rem;
 }
 
 .filter-option:hover {
   background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
   color: #2c3e50;
-  transform: translateX(2px);
+  transform: translateX(0.125rem);
 }
 
 .filter-option.active {
   background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
   color: #ffffff;
-  box-shadow: 0 8px 16px rgba(74, 144, 226, 0.25);
+  box-shadow: 0 0.5rem 1rem rgba(74, 144, 226, 0.25);
 }
 
 .filter-option.active i {
@@ -1328,7 +1327,7 @@ export default {
 @keyframes dropdown-fade {
   from {
     opacity: 0;
-    transform: translateY(-6px);
+    transform: translateY(-0.375rem);
   }
   to {
     opacity: 1;
@@ -1348,17 +1347,17 @@ export default {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  height: 200px;
+  height: 12.5rem;
 }
 
 .spinner {
-  width: 40px;
-  height: 40px;
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #007bff;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 0.25rem solid #f3f3f3;
+  border-top: 0.25rem solid #007bff;
   border-radius: 50%;
   animation: spin 1s linear infinite;
-  margin-bottom: 10px;
+  margin-bottom: 0.625rem;
 }
 
 @keyframes spin {
@@ -1368,71 +1367,90 @@ export default {
 
 .no-images {
   text-align: center;
-  padding: 40px 20px; /* Padding reducido */
+  padding: 2.5rem 1.25rem; /* Padding reducido */
   color: #6c757d;
 }
 
 .no-images .btn-primary {
-  margin-top: 20px;
+  margin-top: 1.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
-.no-images i {
+.no-images .btn-primary i {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.no-images .btn-secondary {
+  margin-top: 1.25rem;
+}
+
+.no-images > i {
   font-size: 3rem; /* Icono más pequeño */
-  margin-bottom: 15px; /* Margen reducido */
+  margin-bottom: 0.9375rem; /* Margen reducido */
   color: #dee2e6;
 }
 
 .image-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 0.75rem;
   width: 100%;
-  padding: 10px 0;
+  padding: 0.625rem 0;
 }
 
-/* Ajustes para pantallas muy anchas */
-@media (min-width: 1800px) {
+/* Ajustes para pantallas medianas */
+@media (max-width: 87.5em) {
   .image-grid {
-    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-    gap: 15px;
+    grid-template-columns: repeat(7, 1fr);
   }
 }
 
-/* Para pantallas estándar, mantener tarjetas pequeñas */
-@media (max-width: 1600px) and (min-width: 1200px) {
+/* Para tablets */
+@media (max-width: 75em) {
   .image-grid {
-    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
-    gap: 10px;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 0.625rem;
+  }
+}
+
+/* Para pantallas más pequeñas */
+@media (max-width: 56.25em) {
+  .image-grid {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0.5rem;
   }
 }
 
 .image-card {
   background: white;
-  border-radius: 6px;
-  border: 1px solid #dee2e6;
+  border-radius: 0.375rem;
+  border: 0.0625rem solid #dee2e6;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.3s ease;
   position: relative;
   display: flex;
   flex-direction: column;
-  height: 201px; /* Aumenta el alto para más espacio */
+  height: 12.5625rem; /* Aumenta el alto para más espacio */
 }
 
 .image-card:hover {
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  transform: translateY(-2px);
+  box-shadow: 0 0.25rem 0.75rem rgba(0,0,0,0.15);
+  transform: translateY(-0.125rem);
 }
 
 .image-card img {
   width: 100%;
-  height: 140px;
+  height: 8.75rem;
   object-fit: cover;
   flex-shrink: 0;
 }
 
 .image-info {
-  padding: 6px 8px;/* Más espacio arriba y abajo */
+  padding: 0.375rem 0.5rem;/* Más espacio arriba y abajo */
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -1442,7 +1460,7 @@ export default {
 
 .filename {
   font-weight: 500;
-  margin: 0 0 2px 0; /* Más margen inferior para que no se corte */
+  margin: 0 0 0.125rem 0; /* Más margen inferior para que no se corte */
   font-size: 0.75rem;
   color: #333;
   white-space: nowrap;
@@ -1460,16 +1478,16 @@ export default {
 
 .image-actions {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 0.5rem;
+  right: 0.5rem;
 }
 
 .btn-icon {
   background: rgba(0,0,0,0.5);
   border: none;
   border-radius: 50%;
-  width: 26px;
-  height: 26px;
+  width: 1.625rem;
+  height: 1.625rem;
   color: white;
   cursor: pointer;
   display: flex;
@@ -1503,9 +1521,9 @@ export default {
 
 .modal {
   background: white;
-  border-radius: 10px;
+  border-radius: 0.625rem;
   width: 90%;
-  max-width: 600px;
+  max-width: 37.5rem;
   max-height: 90vh;
   overflow: hidden;
 }
@@ -1514,8 +1532,8 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 20px;
-  border-bottom: 1px solid #e0e0e0;
+  padding: 1.25rem;
+  border-bottom: 0.0625rem solid #e0e0e0;
 }
 
 .modal-header h2 {
@@ -1532,7 +1550,7 @@ export default {
 }
 
 .modal-body {
-  padding: 20px;
+  padding: 1.25rem;
 }
 
 /* Annotator Modal */
@@ -1551,10 +1569,10 @@ export default {
 .annotator-header {
   display: flex;
   align-items: center;
-  gap: 15px;
-  padding: 15px 20px;
+  gap: 0.9375rem;
+  padding: 0.9375rem 1.25rem;
   background: #f8f9fa;
-  border-bottom: 1px solid #dee2e6;
+  border-bottom: 0.0625rem solid #dee2e6;
 }
 
 .annotator-header h2 {
@@ -1565,14 +1583,14 @@ export default {
 .annotator-content {
   display: flex;
   flex: 1;
-  height: calc(100vh - 60px);
+  height: calc(100vh - 3.75rem);
   overflow: hidden;
 }
 
 .annotator-sidebar {
-  width: 380px;
+  width: 23.75rem;
   background: #f8f9fa;
-  border-right: 1px solid #dee2e6;
+  border-right: 0.0625rem solid #dee2e6;
   overflow-y: auto;
   flex-shrink: 0;
 }
@@ -1594,7 +1612,7 @@ export default {
   justify-content: center;
   overflow: auto;
   min-height: 0;
-  padding: 20px;
+  padding: 1.25rem;
 }
 .canvas-flex {
   width: 100%;
@@ -1606,9 +1624,9 @@ export default {
 }
 
 .annotator-ai-sidebar {
-  width: 350px;
+  width: 21.875rem;
   background: #f8f9fa;
-  border-left: 1px solid #dee2e6;
+  border-left: 0.0625rem solid #dee2e6;
   overflow-y: auto;
   flex-shrink: 0;
 }
@@ -1628,7 +1646,7 @@ export default {
   color: white;
   border: none;
   padding: 0.4rem 0.8rem; /* Más compacto */
-  border-radius: 6px;
+  border-radius: 0.375rem;
   cursor: pointer;
   font-size: 0.8rem; /* Texto más pequeño */
   font-weight: 500;
@@ -1643,8 +1661,8 @@ export default {
 
 .pagination-btn:hover:not(:disabled) {
   background: #2980b9;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+  transform: translateY(-0.0625rem);
+  box-shadow: 0 0.125rem 0.3125rem rgba(0,0,0,0.15);
 }
 
 .page-numbers {
@@ -1655,27 +1673,27 @@ export default {
 .page-btn {
   background: white;
   color: #3498db;
-  border: 1px solid #3498db;
+  border: 0.0625rem solid #3498db;
   padding: 0.4rem 0.6rem;
-  border-radius: 6px;
+  border-radius: 0.375rem;
   cursor: pointer;
   font-size: 0.8rem;
   font-weight: 500;
-  min-width: 36px;
+  min-width: 2.25rem;
   transition: all 0.2s ease;
 }
 
 .page-btn:hover {
   background: #3498db;
   color: white;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 5px rgba(0,0,0,0.15);
+  transform: translateY(-0.0625rem);
+  box-shadow: 0 0.125rem 0.3125rem rgba(0,0,0,0.15);
 }
 
 .page-btn.active {
   background: #3498db;
   color: white;
-  box-shadow: 0 2px 5px rgba(52, 152, 219, 0.3);
+  box-shadow: 0 0.125rem 0.3125rem rgba(52, 152, 219, 0.3);
 }
 
 .page-info {
@@ -1694,10 +1712,10 @@ export default {
 .sidebar-header {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding-bottom: 15px;
-  margin-bottom: 18px;
-  border-bottom: 1px solid #495057;
+  gap: 0.75rem;
+  padding-bottom: 0.9375rem;
+  margin-bottom: 1.125rem;
+  border-bottom: 0.0625rem solid #495057;
 }
 .sidebar-header i {
   font-size: 1.15rem;
@@ -1712,31 +1730,31 @@ export default {
 .sidebar-stats-cards {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 0.5rem;
 }
 .sidebar-stat-card {
   background: #495057;
-  border-radius: 8px;
-  padding: 7px 10px;
+  border-radius: 0.5rem;
+  padding: 0.4375rem 0.625rem;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
   transition: box-shadow 0.18s, background 0.18s;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.10);
-  border: 1px solid #3a3f44;
+  box-shadow: 0 0.125rem 0.625rem rgba(0,0,0,0.10);
+  border: 0.0625rem solid #3a3f44;
 }
 .sidebar-stat-card:hover {
   background: #5a6268;
-  box-shadow: 0 4px 16px rgba(52,152,219,0.10);
+  box-shadow: 0 0.25rem 1rem rgba(52,152,219,0.10);
 }
 .sidebar-stat-icon {
   font-size: 1rem;
-  width: 24px;
-  height: 24px;
+  width: 1.5rem;
+  height: 1.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
+  border-radius: 0.375rem;
 }
 .sidebar-icon-images {
   color: #4da3ff;
@@ -1762,7 +1780,7 @@ export default {
 .sidebar-stat-info {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 0.125rem;
 }
 .sidebar-stat-label {
   font-size: 0.78rem;
@@ -1773,31 +1791,21 @@ export default {
   font-size: 1.08rem;
   color: #fff;
   font-weight: 700;
-  letter-spacing: 0.5px;
+  letter-spacing: 0.03125rem;
 }
 
-/* Media queries adicionales para optimizar la distribución */
-@media (max-width: 1200px) {
-  .image-grid {
-    grid-template-columns: repeat(6, 1fr); /* 6 columnas: 3-4 filas */
-    gap: 8px;
-  }
-  
+/* Media queries adicionales para optimizar tarjetas en pantallas pequeñas */
+@media (max-width: 75em) {
   .image-card {
-    min-height: 140px;
-    max-height: 180px;
+    min-height: 8.75rem;
+    max-height: 11.25rem;
   }
 }
 
-@media (max-width: 900px) {
-  .image-grid {
-    grid-template-columns: repeat(5, 1fr); /* 5 columnas: 4-5 filas */
-    gap: 6px;
-  }
-  
+@media (max-width: 56.25em) {
   .image-card {
-    min-height: 120px;
-    max-height: 160px;
+    min-height: 7.5rem;
+    max-height: 10rem;
   }
 
   .filename {
@@ -1811,15 +1819,15 @@ export default {
 
 /* Estilos para videos mezclados con imágenes */
 .image-card.video-card:hover {
-  box-shadow: 0 6px 16px rgba(0,0,0,0.15);
-  transform: translateY(-3px);
+  box-shadow: 0 0.375rem 1rem rgba(0,0,0,0.15);
+  transform: translateY(-0.1875rem);
   border-color: #667eea;
 }
 
 .video-thumbnail {
   position: relative;
   width: 100%;
-  height: 140px;  /* Mismo alto que las imágenes */
+  height: 8.75rem;  /* Mismo alto que las imágenes */
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   align-items: center;
@@ -1837,17 +1845,17 @@ export default {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  border-radius: 12px 12px 0 0;
+  border-radius: 0.75rem 0.75rem 0 0;
 }
 
 .video-duration {
   position: absolute;
-  bottom: 10px;
-  right: 10px;
+  bottom: 0.625rem;
+  right: 0.625rem;
   background: rgba(0, 0, 0, 0.75);
   color: white;
-  padding: 4px 8px;
-  border-radius: 4px;
+  padding: 0.25rem 0.5rem;
+  border-radius: 0.25rem;
   font-size: 0.8rem;
   font-weight: 600;
 }
@@ -1859,9 +1867,9 @@ export default {
   flex-shrink: 0;
   background: #2c3e50;
   padding: 0.75rem 1rem;
-  border-top: 2px solid #34495e;
-  min-height: 160px;
-  max-height: 160px;
+  border-top: 0.125rem solid #34495e;
+  min-height: 10rem;
+  max-height: 10rem;
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1877,17 +1885,17 @@ export default {
 }
 
 .frames-scroll::-webkit-scrollbar {
-  height: 8px;
+  height: 0.5rem;
 }
 
 .frames-scroll::-webkit-scrollbar-track {
   background: #34495e;
-  border-radius: 4px;
+  border-radius: 0.25rem;
 }
 
 .frames-scroll::-webkit-scrollbar-thumb {
   background: #7f8c8d;
-  border-radius: 4px;
+  border-radius: 0.25rem;
 }
 
 .frames-scroll::-webkit-scrollbar-thumb:hover {
@@ -1897,8 +1905,8 @@ export default {
 .frame-thumbnail {
   flex-shrink: 0;
   cursor: pointer;
-  border: 3px solid transparent;
-  border-radius: 6px;
+  border: 0.1875rem solid transparent;
+  border-radius: 0.375rem;
   overflow: hidden;
   transition: all 0.2s;
   background: #34495e;
@@ -1906,17 +1914,17 @@ export default {
 
 .frame-thumbnail:hover {
   border-color: #3498db;
-  transform: translateY(-2px);
+  transform: translateY(-0.125rem);
 }
 
 .frame-thumbnail.active {
   border-color: #e67e22;
-  box-shadow: 0 0 12px rgba(230, 126, 34, 0.6);
+  box-shadow: 0 0 0.75rem rgba(230, 126, 34, 0.6);
 }
 
 .frame-thumbnail img {
   width: 100%;
-  height: 65px;
+  height: 4.0625rem;
   object-fit: contain;
   background-color: #000;
   display: block;

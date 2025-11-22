@@ -342,7 +342,7 @@ export default {
         const authStore = useAuthStore()
         
         const response = await fetch(
-          `http://localhost:5000/api/annotations/export/${this.datasetId}?${params}`,
+          `/api/annotations/export/${this.datasetId}?${params}`,
           {
             method: 'GET',
             headers: {
@@ -415,7 +415,7 @@ export default {
         })
 
         const response = await fetch(
-          `http://localhost:5000/api/annotations/export-stats/${this.datasetId}?${params}`,
+          `/api/annotations/export-stats/${this.datasetId}?${params}`,
           {
             method: 'GET'
           }
@@ -465,46 +465,46 @@ export default {
   justify-content: center;
   align-items: center;
   z-index: 1000;
-  padding: 20px;
+  padding: 1.25rem;
 }
 
 .modal-content {
   background: white;
-  border-radius: 12px;
+  border-radius: 0.75rem;
   width: 100%;
-  max-width: 700px;
+  max-width: 43.75rem;
   max-height: 90vh;
   overflow-y: auto;
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0.625rem 2.5rem rgba(0, 0, 0, 0.3);
 }
 
 .modal-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 24px;
-  border-bottom: 1px solid #e0e0e0;
+  padding: 1.5rem;
+  border-bottom: 0.0625rem solid #e0e0e0;
 }
 
 .modal-header h2 {
   margin: 0;
-  font-size: 24px;
+  font-size: 1.5rem;
   color: #333;
 }
 
 .close-btn {
   background: none;
   border: none;
-  font-size: 24px;
+  font-size: 1.5rem;
   color: #666;
   cursor: pointer;
   padding: 0;
-  width: 32px;
-  height: 32px;
+  width: 2rem;
+  height: 2rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   transition: all 0.2s;
 }
 
@@ -514,26 +514,26 @@ export default {
 }
 
 .modal-body {
-  padding: 24px;
+  padding: 1.5rem;
 }
 
 .format-selector h3 {
-  margin: 0 0 16px 0;
-  font-size: 18px;
+  margin: 0 0 1rem 0;
+  font-size: 1.125rem;
   color: #333;
 }
 
 .format-options {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
 }
 
 .format-option {
-  border: 2px solid #e0e0e0;
-  border-radius: 8px;
-  padding: 16px;
+  border: 0.125rem solid #e0e0e0;
+  border-radius: 0.5rem;
+  padding: 1rem;
   cursor: pointer;
   transition: all 0.2s;
   position: relative;
@@ -560,87 +560,87 @@ export default {
 }
 
 .option-content i {
-  font-size: 32px;
+  font-size: 2rem;
   color: #2196F3;
-  margin-bottom: 8px;
+  margin-bottom: 0.5rem;
   display: block;
 }
 
 .option-content strong {
   display: block;
-  font-size: 16px;
+  font-size: 1rem;
   color: #333;
-  margin-bottom: 4px;
+  margin-bottom: 0.25rem;
 }
 
 .option-content small {
   display: block;
-  font-size: 12px;
+  font-size: 0.75rem;
   color: #666;
   line-height: 1.4;
 }
 
 .format-info {
-  margin-bottom: 24px;
+  margin-bottom: 1.5rem;
 }
 
 .info-box {
   background: #e3f2fd;
-  border-left: 4px solid #2196F3;
-  padding: 16px;
-  border-radius: 4px;
+  border-left: 0.25rem solid #2196F3;
+  padding: 1rem;
+  border-radius: 0.25rem;
 }
 
 .info-box h4 {
-  margin: 0 0 8px 0;
-  font-size: 16px;
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
   color: #1976D2;
 }
 
 .info-box h4 i {
-  margin-right: 8px;
+  margin-right: 0.5rem;
 }
 
 .info-box p {
-  margin: 0 0 8px 0;
+  margin: 0 0 0.5rem 0;
   color: #333;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .info-box ul {
   margin: 0;
-  padding-left: 20px;
+  padding-left: 1.25rem;
   color: #555;
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .info-box li {
-  margin: 4px 0;
+  margin: 0.25rem 0;
 }
 
 .info-box code {
   background: rgba(0, 0, 0, 0.1);
-  padding: 2px 6px;
-  border-radius: 3px;
+  padding: 0.125rem 0.375rem;
+  border-radius: 0.1875rem;
   font-family: 'Courier New', monospace;
-  font-size: 13px;
+  font-size: 0.8125rem;
 }
 
 .export-options {
-  margin-bottom: 24px;
-  padding: 16px;
+  margin-bottom: 1.5rem;
+  padding: 1rem;
   background: #f5f5f5;
-  border-radius: 8px;
+  border-radius: 0.5rem;
 }
 
 .export-options h3 {
-  margin: 0 0 16px 0;
-  font-size: 16px;
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
   color: #333;
 }
 
 .option-item {
-  margin-bottom: 12px;
+  margin-bottom: 0.75rem;
 }
 
 .option-item:last-child {
@@ -651,54 +651,54 @@ export default {
   display: flex;
   align-items: center;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #333;
   font-weight: 500;
 }
 
 .option-item input[type="checkbox"] {
-  margin-right: 8px;
+  margin-right: 0.5rem;
   cursor: pointer;
-  width: 18px;
-  height: 18px;
+  width: 1.125rem;
+  height: 1.125rem;
 }
 
 .option-item small {
   display: block;
-  margin-left: 26px;
+  margin-left: 1.625rem;
   color: #666;
-  font-size: 12px;
-  margin-top: 4px;
+  font-size: 0.75rem;
+  margin-top: 0.25rem;
 }
 
 .split-config {
-  margin-top: 16px;
-  padding: 16px;
+  margin-top: 1rem;
+  padding: 1rem;
   background: white;
-  border-radius: 6px;
-  border: 2px solid #2196F3;
+  border-radius: 0.375rem;
+  border: 0.125rem solid #2196F3;
 }
 
 .split-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 16px;
+  margin-bottom: 1rem;
 }
 
 .split-header h4 {
   margin: 0;
-  font-size: 15px;
+  font-size: 0.9375rem;
   color: #333;
 }
 
 .total-percentage {
-  font-size: 14px;
+  font-size: 0.875rem;
   font-weight: 600;
   color: #4CAF50;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 0.375rem;
 }
 
 .total-percentage.invalid {
@@ -706,11 +706,11 @@ export default {
 }
 
 .total-percentage i {
-  font-size: 14px;
+  font-size: 0.875rem;
 }
 
 .split-item {
-  margin-bottom: 16px;
+  margin-bottom: 1rem;
 }
 
 .split-item:last-of-type {
@@ -720,28 +720,28 @@ export default {
 .split-item label {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 8px;
-  font-size: 14px;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.875rem;
   font-weight: 500;
   color: #333;
 }
 
 .split-item label i {
   color: #2196F3;
-  width: 18px;
+  width: 1.125rem;
 }
 
 .slider-container {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0.75rem;
 }
 
 .percentage-slider {
   flex: 1;
-  height: 6px;
-  border-radius: 3px;
+  height: 0.375rem;
+  border-radius: 0.1875rem;
   outline: none;
   -webkit-appearance: none;
   appearance: none;
@@ -751,8 +751,8 @@ export default {
 .percentage-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 18px;
-  height: 18px;
+  width: 1.125rem;
+  height: 1.125rem;
   border-radius: 50%;
   background: #2196F3;
   cursor: pointer;
@@ -765,8 +765,8 @@ export default {
 }
 
 .percentage-slider::-moz-range-thumb {
-  width: 18px;
-  height: 18px;
+  width: 1.125rem;
+  height: 1.125rem;
   border-radius: 50%;
   background: #2196F3;
   cursor: pointer;
@@ -780,11 +780,11 @@ export default {
 }
 
 .percentage-input {
-  width: 60px;
-  padding: 6px 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
+  width: 3.75rem;
+  padding: 0.375rem 0.5rem;
+  border: 0.0625rem solid #ddd;
+  border-radius: 0.25rem;
+  font-size: 0.875rem;
   text-align: center;
   outline: none;
 }
@@ -794,7 +794,7 @@ export default {
 }
 
 .percentage-label {
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #666;
   font-weight: 500;
 }
@@ -802,58 +802,58 @@ export default {
 .split-warning {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
   background: #fff3cd;
-  border: 1px solid #ffc107;
-  border-radius: 4px;
+  border: 0.0625rem solid #ffc107;
+  border-radius: 0.25rem;
   color: #856404;
-  font-size: 13px;
-  margin-top: 12px;
+  font-size: 0.8125rem;
+  margin-top: 0.75rem;
 }
 
 .split-warning i {
-  font-size: 16px;
+  font-size: 1rem;
 }
 
 .split-info {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  padding: 10px 12px;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
   background: #e3f2fd;
-  border: 1px solid #2196F3;
-  border-radius: 4px;
+  border: 0.0625rem solid #2196F3;
+  border-radius: 0.25rem;
   color: #1565C0;
-  font-size: 12px;
-  margin-top: 12px;
+  font-size: 0.75rem;
+  margin-top: 0.75rem;
   line-height: 1.4;
 }
 
 .split-info i {
-  font-size: 14px;
-  margin-top: 1px;
+  font-size: 0.875rem;
+  margin-top: 0.0625rem;
   flex-shrink: 0;
 }
 
 .modal-actions {
   display: flex;
-  gap: 12px;
+  gap: 0.75rem;
   justify-content: flex-end;
-  margin-top: 24px;
+  margin-top: 1.5rem;
 }
 
 .btn {
-  padding: 12px 24px;
+  padding: 0.75rem 1.5rem;
   border: none;
-  border-radius: 6px;
-  font-size: 14px;
+  border-radius: 0.375rem;
+  font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 0.5rem;
 }
 
 .btn:disabled {
@@ -880,62 +880,62 @@ export default {
 }
 
 .progress-section {
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid #e0e0e0;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 0.0625rem solid #e0e0e0;
 }
 
 .progress-bar {
   width: 100%;
-  height: 8px;
+  height: 0.5rem;
   background: #e0e0e0;
-  border-radius: 4px;
+  border-radius: 0.25rem;
   overflow: hidden;
-  margin-bottom: 8px;
+  margin-bottom: 0.5rem;
 }
 
 .progress-fill {
   height: 100%;
   background: linear-gradient(90deg, #2196F3, #21CBF3);
   transition: width 0.3s ease;
-  border-radius: 4px;
+  border-radius: 0.25rem;
 }
 
 .progress-text {
   text-align: center;
   color: #666;
-  font-size: 14px;
+  font-size: 0.875rem;
   margin: 0;
 }
 
 .result-section {
-  margin-top: 24px;
-  padding-top: 24px;
-  border-top: 1px solid #e0e0e0;
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 0.0625rem solid #e0e0e0;
 }
 
 .result-success {
   text-align: center;
-  padding: 20px;
+  padding: 1.25rem;
 }
 
 .result-success i {
-  font-size: 48px;
+  font-size: 3rem;
   color: #4CAF50;
-  margin-bottom: 12px;
+  margin-bottom: 0.75rem;
 }
 
 .result-success h4 {
-  margin: 0 0 16px 0;
-  font-size: 18px;
+  margin: 0 0 1rem 0;
+  font-size: 1.125rem;
   color: #333;
 }
 
 .result-stats {
   display: flex;
   justify-content: center;
-  gap: 32px;
-  margin-bottom: 16px;
+  gap: 2rem;
+  margin-bottom: 1rem;
 }
 
 .stat {
@@ -945,26 +945,26 @@ export default {
 }
 
 .stat strong {
-  font-size: 24px;
+  font-size: 1.5rem;
   color: #2196F3;
   display: block;
-  margin-bottom: 4px;
+  margin-bottom: 0.25rem;
 }
 
 .stat span {
-  font-size: 14px;
+  font-size: 0.875rem;
   color: #666;
 }
 
 .result-message {
   color: #666;
-  font-size: 14px;
+  font-size: 0.875rem;
   margin: 0;
 }
 
 /* Scrollbar personalizado */
 .modal-content::-webkit-scrollbar {
-  width: 8px;
+  width: 0.5rem;
 }
 
 .modal-content::-webkit-scrollbar-track {
@@ -973,7 +973,7 @@ export default {
 
 .modal-content::-webkit-scrollbar-thumb {
   background: #888;
-  border-radius: 4px;
+  border-radius: 0.25rem;
 }
 
 .modal-content::-webkit-scrollbar-thumb:hover {
@@ -981,7 +981,7 @@ export default {
 }
 
 /* Responsive */
-@media (max-width: 768px) {
+@media (max-width: 48em) {
   .format-options {
     grid-template-columns: 1fr;
   }
