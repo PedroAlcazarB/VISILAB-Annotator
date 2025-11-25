@@ -6,11 +6,11 @@ PROD_COMPOSE="$PROJECT_ROOT/docker-compose.prod.yml"
 DEV_COMPOSE="$PROJECT_ROOT/docker-compose.dev.yml"
 
 info() {
-  echo "[visilab-stop] $*"
+  echo "[view-annotator-stop] $*"
 }
 
 fail() {
-  echo "[visilab-stop][error] $*" >&2
+  echo "[view-annotator-stop][error] $*" >&2
   exit 1
 }
 

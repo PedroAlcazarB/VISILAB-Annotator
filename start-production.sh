@@ -7,11 +7,11 @@ ENV_FILE="$PROJECT_ROOT/.env"
 ENV_EXAMPLE="$PROJECT_ROOT/.env.example"
 
 info() {
-  echo "[visilab] $*"
+  echo "[view-annotator] $*"
 }
 
 fail() {
-  echo "[visilab][error] $*" >&2
+  echo "[view-annotator][error] $*" >&2
   exit 1
 }
 
@@ -95,7 +95,7 @@ load_env() {
 }
 
 main() {
-  info "Iniciando despliegue de VISILAB Annotator (producción)..."
+  info "Iniciando despliegue de ViewAnnotator (producción)..."
   ensure_docker
   local compose_cmd
   compose_cmd="$(resolve_compose)"
@@ -112,7 +112,7 @@ main() {
   info "Servicios en ejecución:"
   $compose_cmd -f "$COMPOSE_FILE" ps
 
-  info "VISILAB Annotator está disponible en http://localhost:${FRONTEND_PORT:-5000}"
+  info "ViewAnnotator está disponible en http://localhost:${FRONTEND_PORT:-5000}"
   info "(La API está accesible internamente a través de /api)"
   info "Para ver logs: $compose_cmd -f $COMPOSE_FILE logs -f"
 }

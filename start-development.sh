@@ -7,11 +7,11 @@ ENV_FILE="$PROJECT_ROOT/.env"
 ENV_EXAMPLE="$PROJECT_ROOT/.env.example"
 
 info() {
-  echo "[visilab-dev] $*"
+  echo "[view-annotator-dev] $*"
 }
 
 fail() {
-  echo "[visilab-dev][error] $*" >&2
+  echo "[view-annotator-dev][error] $*" >&2
   exit 1
 }
 
@@ -85,7 +85,7 @@ ensure_directories() {
 }
 
 main() {
-  info "Iniciando entorno de desarrollo de VISILAB Annotator..."
+  info "Iniciando entorno de desarrollo de ViewAnnotator..."
   ensure_docker
   local compose_cmd
   compose_cmd="$(resolve_compose)"
