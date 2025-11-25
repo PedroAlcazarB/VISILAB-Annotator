@@ -6,7 +6,7 @@
     </div>
     <div v-else :class="containerClass">
       <header v-if="showHeader" :class="headerClass">
-        <h1>VISILAB Annotator</h1>
+        <h1>ViewAnnotator</h1>
         <nav>
           <RouterLink
             :to="{ name: 'welcome' }"

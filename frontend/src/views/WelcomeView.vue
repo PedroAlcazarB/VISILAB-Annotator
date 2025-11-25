@@ -1,6 +1,6 @@
 <template>
   <div class="welcome-content">
-    <h2>Bienvenido a VISILAB Annotator</h2>
+    <h2>Bienvenido a ViewAnnotator</h2>
     <p class="welcome-user">
       Hola, <strong>{{ username }}</strong>!
     </p>
